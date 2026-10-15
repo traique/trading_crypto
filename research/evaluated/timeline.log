@@ -1,0 +1,8 @@
+2026-10-15T12:05:35Z protocol.md sections 0-7 written and frozen (sha256 20b24658dd573be488da120e4f3403a1e96af1264334ac483555cc1b9bb0e062); no run has touched any date after 2023-12-31
+2026-10-15T12:21:24Z sections 0-7 unchanged (sha256 20b24658dd573be488da120e4f3403a1e96af1264334ac483555cc1b9bb0e062); section 8 pre-TEST addendum appended; full protocol sha256 65bd5fb0b40741431c3c5650c63276ee30719f82cf104353791c74f9469d6fc6; next step: test_batch.py (first and only TEST unlock)
+2026-10-15T12:21:32Z corrected a typo in the addendum's timestamp (12:31Z -> 12:21Z, the real write time); sections 0-7 unchanged (20b24658dd573be488da120e4f3403a1e96af1264334ac483555cc1b9bb0e062); full protocol sha256 250886b1fa2554471aa912bc4c0226eeefedb8ae92290e7b09eb532bc6985078; still no TEST run
+2026-10-15T12:21:40Z TEST batch starting (unlock_test=True)
+2026-10-15T12:23:34Z TEST batch finished: 396 runs, 0 errors, data last day 2026-10-14
+2026-10-15T12:24:01Z NAV CSVs of the base TEST / VALID+TEST / ALL runs written
+2026-10-15T12:26:18Z post-decision analysis.py started (bootstrap on saved NAVs; porting diagnostics of the winner on TEST; not used for selection, decision already fixed: fallback -> C2_btc_sma_ens)
+2026-10-15T12:30:44Z decision applied: fallback -> C2_btc_sma_ens; winner.json written (report returned as the final answer; the harness does not allow subagents to write report .md files)

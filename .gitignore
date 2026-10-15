@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data (price cache, ledgers, reports) and research outputs: never committed.
+# Anchored to the repo root so the source package cryptotrader/data/ is NOT ignored.
+/data/
+/results/
+/reports/
+research/data/
+research/out/
+research/runs/
+*.tmp

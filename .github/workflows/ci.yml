@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python-version }}${{ matrix.tz && format(', {0}', matrix.tz) || '' }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        # One run away from UTC: the daily candle is a UTC day, so a test that
+        # only passes when the host clock is UTC fails here.
+        include:
+          - python-version: "3.12"
+            tz: America/New_York
+    env:
+      TZ: ${{ matrix.tz }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install (with dev and bot extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,bot]"
+      - name: Run test suite (no network)
+        run: pytest -q
+
+  smoke-install:
+    name: clean-install smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fresh install (no extras) and import
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          # Catches undeclared runtime dependencies: a bare install must import the core.
+          python -c "import cryptotrader, cryptotrader.data, cryptotrader.trading.ledger, cryptotrader.strategies; print('clean-install import OK', cryptotrader.__version__)"
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install "ruff>=0.16"
+      - name: Lint the repository
+        run: ruff check .

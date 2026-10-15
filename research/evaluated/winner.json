@@ -1,0 +1,488 @@
+{
+ "name": "C2_btc_sma_ens",
+ "family": "trend-majors",
+ "decision": {
+  "tier": "fallback (most robust simple rule)",
+  "tier1_passers": [],
+  "tier2_passers": [],
+  "fallback_qualifiers": {
+   "C2_btc_sma_ens": 4,
+   "A_btc_trend_voltarget": 6,
+   "C3_majors_sma_ens_vt50": 6,
+   "C2_LV_ENS_CORE50": 7
+  },
+  "rule_lines": [
+   "tier1: no candidate passes",
+   "tier2: no candidate passes",
+   "fallback: qualifiers ['C2_btc_sma_ens', 'A_btc_trend_voltarget', 'C3_majors_sma_ens_vt50', 'C2_LV_ENS_CORE50']; chosen C2_btc_sma_ens"
+  ],
+  "protocol": "eval/protocol.md (sections 0-7 sha256 20b24658dd573be488da120e4f3403a1e96af1264334ac483555cc1b9bb0e062, frozen 2026-10-15T12:05:35Z; TEST batch run once 12:21:40-12:24:01Z)"
+ },
+ "code_path": "/tmp/claude-0/-home-user-trading-vn/3ff16925-6a16-566a-8fc4-7f2cd08c9bba/scratchpad/crypto_research/trend-majors/trend_majors.py",
+ "code_sha256": "e10e54919dcccbb217d6b4cc41ab0d126d9d899bc196bf27642e25fa6ddc0a68",
+ "frozen_copy": "/tmp/claude-0/-home-user-trading-vn/3ff16925-6a16-566a-8fc4-7f2cd08c9bba/scratchpad/crypto_research/eval/cand_src/trend_majors/trend_majors.py",
+ "constructor": "trend_majors.candidate('C2_btc_sma_ens') == TrendMajors(name='C2_btc_sma_ens', assets=('BTCUSDT',), signal=('ens_sma', (50, 75, 100, 125, 150, 175, 200)), alloc='equal', check='daily', band=0.10)",
+ "bot_form": "TrendMajorsLive(<the TrendMajors above>) -> decide(StrategyContext); warmup_days 203; identical NAV to the research form on TRAIN+VALID and on TEST",
+ "universe_kind": "fixed: BTCUSDT only (no universe; rest of the book in USDT)",
+ "params": {
+  "assets": [
+   "BTCUSDT"
+  ],
+  "signal": "ens_sma",
+  "sma_lookbacks": [
+   50,
+   75,
+   100,
+   125,
+   150,
+   175,
+   200
+  ],
+  "alloc": "equal",
+  "check": "daily",
+  "band": 0.1,
+  "vol_target": null,
+  "min_trade_pct": 0.5,
+  "n_free_params_declared": 3,
+  "n_free_params_evaluator": 4
+ },
+ "exact_rules": [
+  "Decide once a day at the close of UTC day D (candle closes 00:00 UTC = 07:00 Vietnam time), using BTCUSDT daily closes up to and including D.",
+  "If BTCUSDT has no candle on D: change nothing.",
+  "Warm-up: with fewer than 201 closes the target weight is 0 (history window used: 203 closes).",
+  "For each n in (50, 75, 100, 125, 150, 175, 200): vote_n = 1 if close_D > mean of the last n closes (D included), else 0.",
+  "Target BTC weight w* = (sum of votes) / 7, so steps of 1/7; the rest of the NAV stays in USDT. No leverage, no shorting.",
+  "Let w = current BTC weight at D's close. If (w > 0.005) differs from (w* > 0.005), trade to w*. Otherwise trade to w* only when |w - w*| > 0.10; else no order.",
+  "Orders are market orders filled at D+1's open, planned with ledger.plan_target_weights (min_trade_pct 0.5 in the research form; the bot's default 1.0 gives identical results on every split).",
+  "Costs assumed in all numbers: 0.1% taker fee per fill + 0.1% slippage per fill; cash earns 0."
+ ],
+ "metrics": {
+  "TRAIN": {
+   "strategy": {
+    "total": 528.81,
+    "cagr": 58.35,
+    "mdd": -41.44,
+    "sharpe": 1.189,
+    "sortino": 1.842,
+    "calmar": 1.408,
+    "vol": 48.49,
+    "exposure": 51.3,
+    "time_inv": 65.2,
+    "turnover": 5.8,
+    "trades": 217,
+    "fees_pct_cap": 12.56,
+    "final_nav": 62880.66,
+    "start": "2018-01-01",
+    "end": "2021-12-31"
+   },
+   "btc_price_no_costs": {
+    "cagr": 36.33,
+    "mdd": -81.18,
+    "sharpe": 0.796,
+    "total": 245.42
+   },
+   "btc_trend_placeholder": {
+    "cagr": 21.06,
+    "mdd": -64.7,
+    "sharpe": 0.63,
+    "trades": 32
+   }
+  },
+  "VALID": {
+   "strategy": {
+    "total": 56.91,
+    "cagr": 25.28,
+    "mdd": -21.54,
+    "sharpe": 0.931,
+    "sortino": 1.572,
+    "calmar": 1.174,
+    "vol": 28.51,
+    "exposure": 41.8,
+    "time_inv": 55.8,
+    "turnover": 4.09,
+    "trades": 92,
+    "fees_pct_cap": 1.67,
+    "final_nav": 15690.9,
+    "start": "2022-01-01",
+    "end": "2023-12-31"
+   },
+   "btc_price_no_costs": {
+    "cagr": -5.87,
+    "mdd": -66.93,
+    "sharpe": 0.165,
+    "total": -11.4
+   },
+   "btc_trend_placeholder": {
+    "cagr": 39.05,
+    "mdd": -18.89,
+    "sharpe": 1.268,
+    "trades": 5
+   }
+  },
+  "TEST": {
+   "strategy": {
+    "total": 87.89,
+    "cagr": 25.39,
+    "mdd": -29.63,
+    "sharpe": 0.858,
+    "sortino": 1.36,
+    "calmar": 0.857,
+    "vol": 32.46,
+    "exposure": 57.8,
+    "time_inv": 74.6,
+    "turnover": 6.32,
+    "trades": 180,
+    "fees_pct_cap": 5.55,
+    "final_nav": 18789.1,
+    "start": "2024-01-01",
+    "end": "2026-10-14"
+   },
+   "btc_price_no_costs": {
+    "cagr": 24.67,
+    "mdd": -52.97,
+    "sharpe": 0.703,
+    "total": 84.89
+   },
+   "btc_trend_placeholder": {
+    "cagr": 19.67,
+    "mdd": -32.28,
+    "sharpe": 0.677,
+    "trades": 29
+   }
+  },
+  "TRAIN+VALID": {
+   "strategy": {
+    "total": 886.65,
+    "cagr": 46.46,
+    "mdd": -46.85,
+    "sharpe": 1.102,
+    "sortino": 1.728,
+    "calmar": 0.992,
+    "vol": 42.88,
+    "exposure": 48.1,
+    "time_inv": 62.0,
+    "turnover": 4.87,
+    "trades": 309,
+    "fees_pct_cap": 23.04,
+    "final_nav": 98665.41,
+    "start": "2018-01-01",
+    "end": "2023-12-31"
+   },
+   "btc_price_no_costs": {
+    "cagr": 21.14,
+    "mdd": -81.18,
+    "sharpe": 0.631,
+    "total": 216.02
+   },
+   "btc_trend_placeholder": {
+    "cagr": 26.78,
+    "mdd": -64.7,
+    "sharpe": 0.752,
+    "trades": 37
+   }
+  },
+  "VALID+TEST": {
+   "strategy": {
+    "total": 208.65,
+    "cagr": 26.55,
+    "mdd": -29.63,
+    "sharpe": 0.914,
+    "sortino": 1.484,
+    "calmar": 0.896,
+    "vol": 30.93,
+    "exposure": 51.2,
+    "time_inv": 66.8,
+    "turnover": 5.74,
+    "trades": 271,
+    "fees_pct_cap": 10.63,
+    "final_nav": 30865.36,
+    "start": "2022-01-01",
+    "end": "2026-10-14"
+   },
+   "btc_price_no_costs": {
+    "cagr": 11.88,
+    "mdd": -66.93,
+    "sharpe": 0.475,
+    "total": 71.16
+   },
+   "btc_trend_placeholder": {
+    "cagr": 28.64,
+    "mdd": -32.28,
+    "sharpe": 0.918,
+    "trades": 33
+   }
+  },
+  "ALL": {
+   "strategy": {
+    "total": 1840.83,
+    "cagr": 40.15,
+    "mdd": -46.85,
+    "sharpe": 1.044,
+    "sortino": 1.641,
+    "calmar": 0.857,
+    "vol": 39.9,
+    "exposure": 51.2,
+    "time_inv": 66.0,
+    "turnover": 5.75,
+    "trades": 488,
+    "fees_pct_cap": 79.38,
+    "final_nav": 194083.44,
+    "start": "2018-01-01",
+    "end": "2026-10-14"
+   },
+   "btc_price_no_costs": {
+    "cagr": 22.86,
+    "mdd": -81.18,
+    "sharpe": 0.646,
+    "total": 510.48
+   },
+   "btc_trend_placeholder": {
+    "cagr": 25.13,
+    "mdd": -64.7,
+    "sharpe": 0.74,
+    "trades": 65
+   }
+  }
+ },
+ "test_stress": {
+  "base": {
+   "start": "2024-01-01",
+   "cagr": 25.39,
+   "mdd": -29.63,
+   "sharpe": 0.858,
+   "btc_sharpe": 0.703
+  },
+  "slip2x": {
+   "start": "2024-01-01",
+   "cagr": 23.82,
+   "mdd": -30.48,
+   "sharpe": 0.819,
+   "btc_sharpe": 0.703
+  },
+  "cap1k": {
+   "start": "2024-01-01",
+   "cagr": 25.39,
+   "mdd": -29.63,
+   "sharpe": 0.858,
+   "btc_sharpe": 0.703
+  },
+  "cap100k_adv1": {
+   "start": "2024-01-01",
+   "cagr": 25.39,
+   "mdd": -29.63,
+   "sharpe": 0.858,
+   "btc_sharpe": 0.703
+  },
+  "start+1m": {
+   "start": "2024-02-01",
+   "cagr": 28.29,
+   "mdd": -29.63,
+   "sharpe": 0.94,
+   "btc_sharpe": 0.738
+  },
+  "start+2m": {
+   "start": "2024-03-01",
+   "cagr": 12.35,
+   "mdd": -29.63,
+   "sharpe": 0.529,
+   "btc_sharpe": 0.452
+  },
+  "start+3m": {
+   "start": "2024-04-01",
+   "cagr": 8.02,
+   "mdd": -28.19,
+   "sharpe": 0.412,
+   "btc_sharpe": 0.364
+  },
+  "fee0075": {
+   "start": "2024-01-01",
+   "cagr": 25.81,
+   "mdd": -29.41,
+   "sharpe": 0.868,
+   "btc_sharpe": 0.703
+  },
+  "cap1M_adv1": {
+   "start": "2024-01-01",
+   "cagr": 25.39,
+   "mdd": -29.63,
+   "sharpe": 0.858,
+   "btc_sharpe": 0.703
+  }
+ },
+ "yearly_returns_pct_all_run": {
+  "2018": {
+   "strategy": -28.09,
+   "btc": -72.33
+  },
+  "2019": {
+   "strategy": 99.37,
+   "btc": 94.31
+  },
+  "2020": {
+   "strategy": 196.27,
+   "btc": 301.98
+  },
+  "2021": {
+   "strategy": 48.04,
+   "btc": 59.79
+  },
+  "2022": {
+   "strategy": -21.05,
+   "btc": -64.21
+  },
+  "2023": {
+   "strategy": 98.75,
+   "btc": 155.61
+  },
+  "2024": {
+   "strategy": 76.35,
+   "btc": 121.31
+  },
+  "2025": {
+   "strategy": -0.97,
+   "btc": -6.33
+  },
+  "2026": {
+   "strategy": 12.64,
+   "btc": -6.81
+  }
+ },
+ "gates": {
+  "G0": true,
+  "G1": {
+   "TRAIN": true,
+   "VALID": true,
+   "TEST": true
+  },
+  "G2": {
+   "VALID": true,
+   "TEST": true
+  },
+  "G3": {
+   "VALID": false,
+   "TEST": true
+  },
+  "G3_tier2": {
+   "TEST": true,
+   "VALID+TEST": false
+  },
+  "G4": {
+   "VALID": true,
+   "TEST": true
+  }
+ },
+ "uncertainty_bootstrap": {
+  "TEST": {
+   "C2_btc_sma_ens-BTC": {
+    "sharpe": {
+     "p05": -0.442,
+     "median": 0.121,
+     "p95": 0.725,
+     "share_gt_0": 0.626
+    },
+    "cagr": {
+     "p05": -38.216,
+     "median": 0.268,
+     "p95": 29.643,
+     "share_gt_0": 0.504
+    }
+   },
+   "C2_btc_sma_ens-btc_trend": {
+    "sharpe": {
+     "p05": -0.184,
+     "median": 0.158,
+     "p95": 0.544,
+     "share_gt_0": 0.778
+    },
+    "cagr": {
+     "p05": -9.326,
+     "median": 5.328,
+     "p95": 20.976,
+     "share_gt_0": 0.724
+    }
+   },
+   "A_btc_trend_voltarget-C2_btc_sma_ens": {
+    "sharpe": {
+     "p05": -0.116,
+     "median": 0.045,
+     "p95": 0.202,
+     "share_gt_0": 0.674
+    },
+    "cagr": {
+     "p05": -5.726,
+     "median": 0.848,
+     "p95": 6.973,
+     "share_gt_0": 0.587
+    }
+   }
+  },
+  "VALID+TEST": {
+   "C2_btc_sma_ens-BTC": {
+    "sharpe": {
+     "p05": -0.093,
+     "median": 0.41,
+     "p95": 0.94,
+     "share_gt_0": 0.906
+    },
+    "cagr": {
+     "p05": -17.465,
+     "median": 13.516,
+     "p95": 39.881,
+     "share_gt_0": 0.775
+    }
+   },
+   "C2_btc_sma_ens-btc_trend": {
+    "sharpe": {
+     "p05": -0.3,
+     "median": -0.019,
+     "p95": 0.276,
+     "share_gt_0": 0.457
+    },
+    "cagr": {
+     "p05": -14.277,
+     "median": -2.36,
+     "p95": 9.302,
+     "share_gt_0": 0.359
+    }
+   },
+   "A_btc_trend_voltarget-C2_btc_sma_ens": {
+    "sharpe": {
+     "p05": -0.072,
+     "median": 0.047,
+     "p95": 0.167,
+     "share_gt_0": 0.74
+    },
+    "cagr": {
+     "p05": -4.044,
+     "median": 0.668,
+     "p95": 5.177,
+     "share_gt_0": 0.597
+    }
+   }
+  }
+ },
+ "runner_up": {
+  "name": "A_btc_trend_voltarget",
+  "family": "portfolio-blend",
+  "params": 6,
+  "TEST": {
+   "cagr": 26.31,
+   "mdd": -25.85,
+   "sharpe": 0.904,
+   "trades": 70
+  },
+  "note": "Slightly better TEST numbers than C2 but statistically indistinguishable (A-C2 TEST CAGR 90% bootstrap -5.7..+7.0); more parameters; missed Tier 2 by 0.02 MDD points (VALID+TEST MDD -25.85 vs limit -25.82)."
+ },
+ "why": [
+  "No candidate passed Tier 1 (the strict suggested rule) or Tier 2; the pre-registered fallback picks the simplest candidate passing G0, G1 (VALID/TEST), G2 (VALID/TEST) and G4: C2_btc_sma_ens (4 params) over A (6), C3_majors_sma_ens_vt50 (6) and C2_LV_ENS_CORE50 (7). The placeholder btc_trend does not qualify (TEST Sharpe 0.677 < BTC 0.703; also fails G4 and the TRAIN drawdown gate).",
+  "C2 also passes G1 on TRAIN; its only failed gate is G3: the placeholder comparison on VALID (25.3 vs 39.0 CAGR) and on VALID+TEST (26.6 vs 28.6).",
+  "Out of sample (TEST 2024-01-01..2026-10-14, after costs): CAGR 25.4% vs BTC 24.7%, MDD -29.6% vs -53.0%, Sharpe 0.86 vs 0.70; vs btc_trend 19.7% / -32.3% / 0.68.",
+  "The robust property across TRAIN, VALID and TEST is drawdown reduction (MDD -41/-22/-30% vs BTC -81/-67/-53%), not excess return; the TEST excess return over BTC (+0.7 pt) is not statistically meaningful."
+ ],
+ "caveats": [
+  "One 2.8-year TEST path (bull 2024, top 2025, bear 2026); large standard errors.",
+  "Trails BTC in strong bull years (2024: about +68..76% vs +112%).",
+  "About 6.3x one-way turnover a year; cost drag about 2.5 CAGR points a year at 0.2% per side all-in.",
+  "VALID partly used by the trend-majors family to choose C2; TRAIN/VALID numbers come after an 805-configuration search."
+ ]
+}

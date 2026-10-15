@@ -1,0 +1,15 @@
+# trading-crypto on Botkeep: the core dependencies plus the bot extra of
+# pyproject.toml, with the same version specifiers (a test checks they match).
+# No exchange SDK: the bot never trades on an exchange.
+requests>=2.32.4
+pandas>=2.2
+numpy>=1.26
+python-dotenv>=1.0.0
+tzdata>=2024.1
+langchain-core>=1.0
+langchain-openai>=1.0
+langgraph>=1.0
+markdown-it-py>=4.0
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
