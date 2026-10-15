@@ -143,8 +143,9 @@ class LongShortSma:
         if self.btc_filter and direction and spec.symbol != BTC:
             btc_dir = self.btc_direction(btc_frame, frame["Date"].iloc[-1])
             if btc_dir != direction:
-                filtered = ("BTC đang " + {1: "tăng", -1: "giảm", 0: "không rõ xu hướng"}[btc_dir]
-                            + f", ngược/không cùng chiều {'LONG' if direction > 0 else 'SHORT'}")
+                side = "LONG" if direction > 0 else "SHORT"
+                btc_txt = {1: "đang tăng", -1: "đang giảm", 0: "chưa có xu hướng rõ"}[btc_dir]
+                filtered = f"BTC {btc_txt}; chỉ {side} khi BTC cũng {'tăng' if direction > 0 else 'giảm'}"
                 direction = 0
                 out["direction"] = 0
         if len(closes) < max(self.lookbacks) + 1:
