@@ -33,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 
 from bot import fmt
-from bot.analysis import fallback_message, provider_status, unavailable_reason
+from bot.analysis import fallback_message, gate_line, provider_status, unavailable_reason
 from bot.checks import check_request
 from bot.jobs import Job, JobQueue
 from bot.service import quick_text
@@ -606,6 +606,9 @@ class TelegramBot:
             lines.append(f"- {row['label']}{model}: {state}")
         if not rows:
             lines.append("- chưa cấu hình (chỉ dùng được /nhanh)")
+        gate = gate_line()
+        if gate:
+            lines.append(gate)
         if self.trader is not None and self.settings.trade_mode != "off":
             lines.append("\n" + self.trader.next_run_text())
         return "\n".join(lines)

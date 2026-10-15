@@ -40,6 +40,14 @@ Configuration (environment):
     LLM_CALL_TIMEOUT_SEC per-call timeout (default 120)
     LLM_BAD_RESPONSE_REST_SEC  rest after an error body / malformed answer (default 60)
     LLM_DOWN_SKIP_SEC    after every provider failed, answer AI_UNAVAILABLE_TEXT this long (default 300)
+
+Every request (each provider tried) first passes the process-wide gate of
+``rate_gate``: one request at a time by default, spaced and capped per minute,
+hour, day and analysis (LLM_MAX_CONCURRENT, LLM_MIN_INTERVAL_SEC,
+LLM_MAX_CALLS_PER_MINUTE / _PER_HOUR / _PER_DAY / _PER_ANALYSIS). A request the
+gate refuses ends the call at once (``BudgetRefusedError``, no next provider):
+the agents' model then answers AI_UNAVAILABLE_TEXT, without marking the chain
+as down.
 """
 
 from __future__ import annotations
@@ -60,6 +68,7 @@ from langchain_core.runnables import RunnableLambda
 from pydantic import Field
 
 from .base_client import BaseLLMClient, normalize_content
+from .rate_gate import GATE, LLMBudgetExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +82,10 @@ AI_UNAVAILABLE_TEXT = (f"{AI_UNAVAILABLE_MARK}: mọi nhà cung cấp AI đều 
 
 class AllProvidersFailedError(RuntimeError):
     """Every provider of the chain failed for one call."""
+
+
+class BudgetRefusedError(AllProvidersFailedError):
+    """The rate gate refused the call (a call budget is spent or the gateway is busy too long)."""
 
 
 @dataclass(frozen=True)
@@ -230,7 +243,12 @@ def run_chain(chain: Sequence[tuple[str, Any]], call) -> Any:
     errors = []
     for name, model in ordered:
         try:
-            result = call(model)
+            with GATE.slot(name):
+                result = call(model)
+        except LLMBudgetExceeded as exc:
+            # Not the provider's failure, and the next provider would spend the budget again.
+            logger.warning("LLM call refused by the rate gate: %s", exc)
+            raise BudgetRefusedError(str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - classified below
             is_provider_failure, rest, reason = _classify(exc)
             if not is_provider_failure:
@@ -290,6 +308,10 @@ class FallbackChatModel(BaseChatModel):
         else:
             try:
                 message = run_chain(self.chain, call)
+            except BudgetRefusedError as exc:
+                if not self.degrade:
+                    raise
+                message = AIMessage(content=f"{AI_UNAVAILABLE_TEXT} ({exc})")
             except AllProvidersFailedError as exc:
                 if not self.degrade:
                     raise
@@ -310,6 +332,8 @@ class FallbackChatModel(BaseChatModel):
                 raise AllProvidersFailedError(self.outage.get("reason") or "every LLM provider failed")
             try:
                 return run_chain(chain, lambda model: model.with_structured_output(schema, **kwargs).invoke(prompt))
+            except BudgetRefusedError:
+                raise
             except AllProvidersFailedError as exc:
                 if self.degrade:
                     self._mark_down(exc)

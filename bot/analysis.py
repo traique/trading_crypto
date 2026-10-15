@@ -89,6 +89,18 @@ def provider_status() -> list[dict]:
     return rows
 
 
+def gate_line() -> str:
+    """The LLM rate gate (sequential calls, call budgets) as one line, or "" when unavailable."""
+    module = _import("cryptotrader.llm_clients.rate_gate")
+    if module is None:
+        return ""
+    try:
+        return str(module.status_line())
+    except Exception:  # noqa: BLE001 - a status page must not fail on it
+        logger.exception("gate status failed")
+        return ""
+
+
 def configured_order() -> list[str]:
     module = _import(FALLBACK_MODULE)
     if module is not None and hasattr(module, "configured_order"):

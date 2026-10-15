@@ -6,12 +6,16 @@ import pytest
 import requests
 
 from cryptotrader.data import net
+from cryptotrader.llm_clients.rate_gate import GATE
 
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path, monkeypatch, request):
     monkeypatch.setenv("CRYPTO_DATA_DIR", str(tmp_path / "data"))
+    # The LLM gate spaces real calls; the scripted models of the tests need no spacing.
+    monkeypatch.setenv("LLM_MIN_INTERVAL_SEC", "0")
     net.reset_breakers()
+    GATE.reset()
     if request.node.get_closest_marker("integration") is None:
         def _no_network(self, method, url, *args, **kwargs):
             raise AssertionError(f"network access in a unit test: {method} {url}")
@@ -19,3 +23,4 @@ def _isolated(tmp_path, monkeypatch, request):
         monkeypatch.setattr(requests.Session, "request", _no_network)
     yield
     net.reset_breakers()
+    GATE.reset()

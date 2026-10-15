@@ -269,3 +269,23 @@ def test_a_run_with_every_ai_provider_down_still_reports_the_system_decision(tmp
     assert len(down.calls) <= 5      # at most the parallel analysts race it; not walked once per node
     graph.save_reports(state, "BTCUSDT", save_path=tmp_path / "rep")
     assert (tmp_path / "rep" / "complete_report.md").exists()
+
+
+def test_an_analysis_over_its_llm_call_budget_still_completes(tmp_path, monkeypatch, offline):
+    """LLM_MAX_CALLS_PER_ANALYSIS caps the requests of one run, the parallel analysts included
+    (the budget follows the context into LangGraph's threads); the run still decides."""
+    from cryptotrader.llm_clients import fallback_client as fc
+    from cryptotrader.llm_clients.rate_gate import GATE
+
+    monkeypatch.setenv("LLM_MAX_CALLS_PER_ANALYSIS", "3")
+    fc.reset_provider_state()
+    scripted = ScriptedModel()
+    model = fc.FallbackChatModel(chain=[("groq", scripted)], degrade=True)
+    graph = _graph(tmp_path, monkeypatch, model)
+    state, rating = graph.propagate("btc", DAY)
+    assert rating == state["quant_decision"]["action"] == "BUY"
+    assert GATE.status()["total"] == 3          # requests that reached a provider
+    assert GATE.status()["refused"] >= 1
+    # The next analysis has its own budget.
+    graph.propagate("btc", DAY)
+    assert GATE.status()["total"] == 6

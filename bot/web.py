@@ -30,7 +30,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from bot import clock, fmt, ui
-from bot.analysis import fallback_message, provider_status, unavailable_reason
+from bot.analysis import fallback_message, gate_line, provider_status, unavailable_reason
 from bot.books import title_of
 from bot.checks import check_request
 from bot.jobs import Job, JobQueue
@@ -408,7 +408,9 @@ def create_app(settings: Settings, jobs: JobQueue, trader=None) -> FastAPI:
             + '<div class="grid g2">'
             + ui.card("Một coin", ask)
             + ui.card("Nhà cung cấp AI", ui.table([("Nhà cung cấp", ""), ("Model", ""), ("Trạng thái", "")], providers,
-                                                  "Chưa cấu hình nhà cung cấp AI nào."),
+                                                  "Chưa cấu hình nhà cung cấp AI nào.")
+                      + (f'<p class="muted small" style="margin:10px 14px">{html.escape(gate_line())}</p>'
+                         if gate_line() else ""),
                       sub="Theo thứ tự dự phòng", flush=True)
             + "</div>"
             + '<div style="margin-top:16px">'

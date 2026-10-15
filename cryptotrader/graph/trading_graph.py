@@ -18,6 +18,7 @@ from cryptotrader.dataflows.config import run_config, run_config_context, set_co
 from cryptotrader.dataflows.date_window import validate_trade_date
 from cryptotrader.default_config import build_default_config
 from cryptotrader.llm_clients import create_tier_client, tier_provider
+from cryptotrader.llm_clients.rate_gate import analysis_budget
 from cryptotrader.reporting import write_report_tree
 
 from .analyst_execution import DEFAULT_ANALYSTS
@@ -76,7 +77,8 @@ class CryptoTradingGraph:
         pair = normalize_symbol(symbol)
         init = self.create_run_state(pair, trade_date, portfolio)
         args = self.propagator.get_graph_args()
-        with run_config(self.config):
+        # One budget of LLM calls per analysis (LLM_MAX_CALLS_PER_ANALYSIS, see llm_clients.rate_gate).
+        with run_config(self.config), analysis_budget(f"{pair} {trade_date}"):
             if self.debug:
                 final_state: dict = {}
                 for messages, state in self.stream_run(init, **args):
