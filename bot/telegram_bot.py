@@ -122,7 +122,7 @@ HELP = (
     "(Binance không dùng BNB); trả phí bằng BNB thì thêm phi=bnb\n"
     "/von 1000 - đặt số USDT của tài khoản thật\n"
     "/futures - sổ futures long/short (ảo), vị thế, tiến độ mục tiêu; /futures chay - chạy ngay; "
-    "/futures tieptuc ETH - chạy lại sau khi dừng\n"
+    "/futures tieptuc BNB - chạy lại sau khi dừng\n"
     "/fvon 10 - số dư ví futures thật (chế độ FUTURES_MODE=signal); /fvon 10 moi - đặt lại vốn gốc\n"
     "/trangthai - hàng đợi, nhà cung cấp AI và trạng thái bot\n"
     "/id - Telegram id của bạn\n\n"
@@ -622,7 +622,7 @@ class TelegramBot:
         elif sub in ("tieptuc", "tiếptục") and len(parts) == 2:
             self.send(chat_id, self.futures.resume(parts[1]))
         else:
-            raise ValueError("Dùng: /futures, /futures chay, /futures tieptuc ETH")
+            raise ValueError("Dùng: /futures, /futures chay, /futures tieptuc BNB")
 
     def _status(self) -> str:
         lines = ["Hàng đợi phân tích:"]

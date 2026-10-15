@@ -63,8 +63,18 @@ class FuturesTrader:
     # ── configuration ──
     def strategy(self) -> LongShortSma:
         s = self.settings
-        return LongShortSma(target_vol=s.futures_target_vol, max_leverage=s.futures_max_leverage,
-                            min_order_max_leverage=s.futures_min_order_leverage)
+        return LongShortSma.preset(s.futures_rule, target_vol=s.futures_target_vol,
+                                   max_leverage=s.futures_max_leverage,
+                                   min_order_max_leverage=s.futures_min_order_leverage)
+
+    def _btc(self, market: _Market, day: str):
+        """BTCUSDT's candles up to ``day`` for the BTC filter (None when unavailable)."""
+        try:
+            frame = market.frame("BTCUSDT", day)
+        except Exception:  # noqa: BLE001 - the filter then keeps altcoins flat
+            logger.warning("Futures: no BTC candles for the BTC filter on %s", day)
+            return None
+        return None if frame is None else frame.iloc[-self.strategy().warmup_days:]
 
     def policy(self) -> AccountPolicy:
         return AccountPolicy(goal_profit=self.settings.futures_goal_profit,
@@ -135,7 +145,8 @@ class FuturesTrader:
                 if frame is None or not len(frame):
                     continue
                 frame = frame.iloc[-strategy.warmup_days:]
-                for note in step(book, strategy, frame, policy):
+                btc = self._btc(market, day) if strategy.btc_filter and symbol != "BTCUSDT" else None
+                for note in step(book, strategy, frame, policy, btc_frame=btc):
                     notes.append(f"{_base(symbol)} {day}: {note}")
                 book.meta["last_day"] = day
                 self.save_book(book)
@@ -220,7 +231,8 @@ class FuturesTrader:
             return [head, "không có nến để tính tín hiệu."]
         strategy = self.strategy()
         spec = spec_for(symbol)
-        d = strategy.decide(frame.iloc[-strategy.warmup_days:], equity, 0.0, spec)
+        btc = self._btc(market, day) if strategy.btc_filter and symbol != "BTCUSDT" else None
+        d = strategy.decide(frame.iloc[-strategy.warmup_days:], equity, 0.0, spec, btc_frame=btc)
         price = float(d["price"] or 0.0)
         qty = float(d["qty"] or 0.0)
         real["last_signal"] = {"day": day, "qty": qty, "price": price, "stop_dist": d["stop_dist"],
@@ -328,5 +340,6 @@ class FuturesTrader:
                 f"vốn mốc mới {_num(book.capital, 2)} USDT, lệnh mới từ lần chạy tới.")
 
     def next_run_text(self) -> str:
-        return (f"Futures ({self.settings.futures_mode}): {', '.join(_base(s) for s in self.symbols)}; "
+        return (f"Futures ({self.settings.futures_mode}, chiến lược ls_sma {self.settings.futures_rule}): "
+                f"{', '.join(_base(s) for s in self.symbols)}; "
                 f"chạy mỗi ngày lúc {self.settings.run_time} giờ VN cùng bot spot.")

@@ -2,6 +2,14 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/). Ngày theo UTC.
 
+## [Chưa phát hành] - 2026-10-15 (tối ưu chiến lược futures)
+
+### Thay đổi
+
+- **`ls_sma` v2** (mặc định, `FUTURES_RULE=v2`): chọn bằng tối ưu walk-forward (`research/optimize_futures.py`): SMA 20…80 ngày, LONG ≥ 6/7, SHORT ≤ 2/7, biến động mục tiêu 30%, tối đa x2, cắt lỗ 4 ATR, **bộ lọc BTC** (altcoin chỉ vào lệnh cùng chiều BTC). TEST 2024–09/2026, trung vị 14 coin, vốn 1000 USDT: +7,4%/năm, sụt giảm −35% (v1: +3,4%, −55%). `FUTURES_RULE=v1` giữ bản cũ; `FUTURES_TARGET_VOL`, `FUTURES_MAX_LEVERAGE` nay chỉ ghi đè khi được đặt.
+- Tín hiệu tài khoản thật mặc định **BNBUSDT** (`FUTURES_SIGNAL_SYMBOL`): với 10 USDT, lệnh tối thiểu 20 USDT của ETH ép đòn bẩy gấp 5–7 lần mức chiến lược muốn (TEST −14,5%/năm, sụt giảm −71%). Báo cáo cảnh báo khi lệnh tối thiểu ép đòn bẩy quá 2 lần mức chiến lược muốn.
+- `research/optimize_futures.py` (bộ mô phỏng nhanh, test cho cùng NAV với backtest thật), `research/OPTIMIZE_RESULTS.md`; `research.futures_study --preset`.
+
 ## [Chưa phát hành] - 2026-10-15 (kiểm tra các kiểu bot MT5)
 
 ### Thêm

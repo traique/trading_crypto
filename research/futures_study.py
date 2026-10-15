@@ -79,14 +79,14 @@ def _fmt(stats: dict) -> str:
 
 
 def goal_study(frame: pd.DataFrame, symbol: str, capital: float, goal: float, floor: float, years: float,
-               strategy: LongShortSma) -> dict:
+               strategy: LongShortSma, btc: pd.DataFrame | None = None) -> dict:
     end = pd.Timestamp(frame["Date"].max())
     starts = pd.date_range("2020-08-01", end - pd.Timedelta(days=365), freq="MS")
     out = []
     for start in starts:
         book = backtest(frame, strategy, capital, AccountPolicy(goal, floor), start=str(start.date()),
                         end=str((start + pd.Timedelta(days=int(365 * years))).date()), symbol=symbol,
-                        stop_at_halt=True)
+                        stop_at_halt=True, btc=btc)
         out.append((book.meta.get("halted"), len(book.history), book.last_nav))
     reached = [r for r in out if r[0] == "goal"]
     return {"starts": len(out), "goal": len(reached), "floor": sum(r[0] == "floor" for r in out),
@@ -101,27 +101,28 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--goal", type=float, default=100.0)
     parser.add_argument("--floor", type=float, default=5.0)
     parser.add_argument("--years", type=float, default=3.0)
-    parser.add_argument("--target-vol", type=float, default=0.5, help="biến động mục tiêu (0.5 = 50%%/năm)")
-    parser.add_argument("--max-leverage", type=float, default=2.0)
+    parser.add_argument("--preset", default="v2", choices=("v2", "v1"), help="bộ tham số ls_sma")
+    parser.add_argument("--target-vol", type=float, default=None, help="biến động mục tiêu (0.3 = 30%%/năm)")
+    parser.add_argument("--max-leverage", type=float, default=None)
     parser.add_argument("--min-order-leverage", type=float, default=3.0)
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args(argv)
-    strategy = LongShortSma(target_vol=args.target_vol, max_leverage=args.max_leverage,
-                            min_order_max_leverage=args.min_order_leverage)
-    print(f"ls_sma: target_vol {args.target_vol:g}, max_leverage {args.max_leverage:g}, "
-          f"min_order_leverage {args.min_order_leverage:g}")
+    strategy = LongShortSma.preset(args.preset, target_vol=args.target_vol, max_leverage=args.max_leverage,
+                                   min_order_max_leverage=args.min_order_leverage)
+    print(f"ls_sma {args.preset}: {strategy}")
+    btc = load_perp("BTCUSDT", args.refresh) if strategy.btc_filter else None
     for symbol in [s.strip().upper() for s in args.symbols.split(",") if s.strip()]:
         frame = load_perp(symbol, args.refresh)
         print(f"\n== {symbol}  ({frame['Date'].min().date()} .. {frame['Date'].max().date()})")
         for capital in (args.capital, 1000.0):
             for label, (start, end) in (("TRAIN", TRAIN), ("TEST ", (TEST_START, None))):
-                book = backtest(frame, strategy, capital, start=start, end=end, symbol=symbol)
+                book = backtest(frame, strategy, capital, start=start, end=end, symbol=symbol, btc=btc)
                 liq = sum(t["reason"] == "THANH LÝ" for t in book.trades)
                 print(f"  vốn {capital:>6g}  {label} {_fmt(summary(nav_series(book)))}  "
                       f"lệnh {len(book.trades)}  thanh lý {liq}")
         hold = frame.set_index("Date")["Close"].loc[TEST_START:]
         print(f"  giữ {symbol} (spot, TEST): {_fmt(summary(hold))}")
-        g = goal_study(frame, symbol, args.capital, args.goal, args.floor, args.years, strategy)
+        g = goal_study(frame, symbol, args.capital, args.goal, args.floor, args.years, strategy, btc)
         print(f"  mục tiêu {args.capital:g} -> {args.capital + args.goal:g} USDT trong {args.years:g} năm, "
               f"{g['starts']} điểm bắt đầu: đạt {g['goal']}, chạm mức dừng {args.floor:g}: {g['floor']}, "
               f"vốn cuối trung vị {g['median_end']:.2f}"

@@ -100,7 +100,7 @@ Bot có thêm phần **futures USDⓈ-M (hợp đồng vĩnh cửu), long và sh
 
 +100 USDT trên 10 USDT là **lãi 1.000% (x11)**. Kiểm tra trên dữ liệu futures thật của Binance (nến perpetual + funding thật từng ngày, 2020–09/2026, phí 0,05% + trượt giá 0,05% mỗi lệnh), bắt đầu từ ngày đầu của **mỗi tháng** (62 điểm bắt đầu), chạy tối đa 3 năm:
 
-| cách chơi (ETHUSDT, vốn 10 USDT, mức dừng 5 USDT) | đạt 110 USDT | chạm mức dừng 5 USDT | vốn cuối trung vị |
+| cách chơi (bản v1, ETHUSDT, vốn 10 USDT, mức dừng 5 USDT) | đạt 110 USDT | chạm mức dừng 5 USDT | vốn cuối trung vị |
 |---|---|---|---|
 | Mặc định của bot (biến động mục tiêu 50%, x2; lệnh tối thiểu ép lên x2–3) | **0/62** | 6/62 (10%) | 6,5 USDT |
 | Mạo hiểm (biến động 120%, tối đa x5) | 2/62 (3%) | 56/62 (**90%**) | 4,8 USDT |
@@ -112,7 +112,7 @@ Nghĩa là: **muốn x11 trong vài năm thì phải dùng đòn bẩy cao, và 
 
 ### Altcoin có giúp đạt mục tiêu nhanh hơn không? Dữ liệu nói: không
 
-Altcoin biến động mạnh hơn nên lãi nhanh hơn **và lỗ cũng nhanh hơn**. Cùng chiến lược, vốn 10 USDT, dữ liệu futures thật (TEST = 01/2024–09/2026; "3 năm" = mọi tháng bắt đầu từ 2020, dừng ở 5 USDT):
+Altcoin biến động mạnh hơn nên lãi nhanh hơn **và lỗ cũng nhanh hơn**. Cùng chiến lược (bản **v1**, trước khi tối ưu; kết quả v2 ở mục tối ưu bên dưới), vốn 10 USDT, dữ liệu futures thật (TEST = 01/2024–09/2026; "3 năm" = mọi tháng bắt đầu từ 2020, dừng ở 5 USDT):
 
 | cặp | TEST mặc định: lãi/năm, sụt giảm | 3 năm mặc định: đạt 110 / chạm dừng | 3 năm mạo hiểm (x5): đạt 110 / chạm dừng |
 |---|---|---|---|
@@ -138,7 +138,7 @@ Altcoin biến động mạnh hơn nên lãi nhanh hơn **và lỗ cũng nhanh h
 - Chọn cặp đứng đầu bảng (BNB) sau khi đã xem bảng là **chọn theo kết quả quá khứ** - không có gì bảo đảm nó dẫn đầu ở giai đoạn tới.
 - Thử thêm cách "săn altcoin mạnh nhất" (mỗi tuần vào altcoin xu hướng mạnh nhất trong 17 cặp, short cặp yếu nhất khi thị trường giảm): TEST **−52%/năm**, 49/55 lần chạm mức dừng. Cách này mua đúng đỉnh các đợt pump; **không** đưa vào bot.
 
-Vì vậy bot mặc định chạy **sổ ảo** cho ETH và 4 altcoin thanh khoản cao (SOL, XRP, DOGE, BNB) để bạn theo dõi trên dữ liệu mới, còn tín hiệu tài khoản thật vẫn theo **ETH** (`FUTURES_SIGNAL_SYMBOL`). Muốn chạy altcoin khác: đặt `FUTURES_SYMBOLS` (cặp phải có trên Binance spot vì bot dùng nến spot) và kiểm tra trước bằng `python -m research.futures_study --symbols <CẶP>`.
+Vì vậy bot mặc định chạy **sổ ảo** cho ETH và 4 altcoin thanh khoản cao (SOL, XRP, DOGE, BNB) để bạn theo dõi trên dữ liệu mới, còn tín hiệu tài khoản thật theo **BNB** (`FUTURES_SIGNAL_SYMBOL`, lý do ở mục "Vốn 10 USDT" bên dưới). Muốn chạy altcoin khác: đặt `FUTURES_SYMBOLS` (cặp phải có trên Binance spot vì bot dùng nến spot) và kiểm tra trước bằng `python -m research.futures_study --symbols <CẶP>`.
 
 ### Lệnh tối thiểu của sàn quyết định với 10 USDT
 
@@ -147,27 +147,54 @@ Binance futures có giá trị lệnh tối thiểu: **BTCUSDT 50 USDT, ETHUSDT/
 - **BTCUSDT không giao dịch được** (cần x5). Bot đứng ngoài và báo "vốn quá nhỏ … cần ≥ 17 USDT" (với giới hạn x3).
 - **ETHUSDT** được, nhưng lệnh 20 USDT trên 10 USDT vốn là **đòn bẩy x2–3** dù chiến lược chỉ muốn khoảng x0,8. Vì vậy mặc định sổ futures là **ETHUSDT**.
 
-### Bot quyết định thế nào (`ls_sma`)
+### Bot quyết định thế nào (`ls_sma` v2, đã tối ưu)
 
-1. **Hướng**, từ giá đóng cửa nến ngày (UTC) và cùng 7 đường SMA 50…200 ngày của chiến lược spot: giá trên **≥ 6/7** đường → **LONG**; trên **≤ 1/7** → **SHORT**; còn lại **đứng ngoài**. Chỉ vào lệnh khi xu hướng rõ.
-2. **Khối lượng**: đòn bẩy = biến động mục tiêu (`FUTURES_TARGET_VOL`, 50%/năm) ÷ biến động thực 30 ngày, tối đa `FUTURES_MAX_LEVERAGE` (x2). Lệnh nhỏ hơn mức tối thiểu của sàn được nâng lên nếu chỉ cần ≤ `FUTURES_MIN_ORDER_LEVERAGE` (x3), không thì đứng ngoài.
-3. **Cắt lỗ**: 3 × ATR(14) tính từ giá vào, đặt cùng vị thế (lệnh STOP_MARKET). Sổ ảo kiểm tra cắt lỗ và **giá thanh lý** trên nến mỗi ngày (giá tệ nhất trước; giá mở cửa vượt qua cắt lỗ thì khớp ở giá mở cửa).
-4. **Biên 25%**: cùng chiều và lệch mục tiêu không quá 25% thì giữ nguyên (đỡ phí).
-5. **Quản lý vốn**: NAV ≥ vốn + `FUTURES_GOAL_PROFIT` (+100) → đóng vị thế, **dừng**, báo "chốt lãi". NAV ≤ `FUTURES_STOP_EQUITY` (5 USDT = mất một nửa) → đóng vị thế, **dừng**. Chạy lại bằng `/futures tieptuc ETH` (mục tiêu và mức dừng tính lại từ vốn lúc đó).
-6. Lệnh là lệnh thị trường ở giá mở cửa nến kế tiếp (00:00 UTC). Sổ ảo trừ phí 0,05%, trượt giá 0,05%, funding giả định 0,03%/ngày cho lệnh long (backtest dùng funding thật). Giá dùng nến spot thay cho nến perpetual (chênh lệch thường dưới 0,1%).
+1. **Hướng**, từ giá đóng cửa nến ngày (UTC) và 7 đường SMA **20, 30, …, 80 ngày**: giá trên **≥ 6/7** đường → **LONG**; trên **≤ 2/7** → **SHORT**; còn lại **đứng ngoài**.
+2. **Bộ lọc BTC**: altcoin chỉ vào lệnh **cùng chiều với tín hiệu của BTC** trong ngày (BTC đứng ngoài thì altcoin cũng đứng ngoài).
+3. **Khối lượng**: đòn bẩy = biến động mục tiêu (**30%/năm**) ÷ biến động thực 30 ngày, tối đa x2. Lệnh nhỏ hơn mức tối thiểu của sàn được nâng lên nếu chỉ cần ≤ `FUTURES_MIN_ORDER_LEVERAGE` (x3), không thì đứng ngoài. Báo cáo cảnh báo khi việc nâng này làm đòn bẩy cao hơn 2 lần mức chiến lược muốn.
+4. **Cắt lỗ**: 4 × ATR(14) tính từ giá vào, đặt cùng vị thế (lệnh STOP_MARKET). Sổ ảo kiểm tra cắt lỗ và **giá thanh lý** trên nến mỗi ngày (giá tệ nhất trước; giá mở cửa vượt qua cắt lỗ thì khớp ở giá mở cửa).
+5. **Biên 25%**: cùng chiều và lệch mục tiêu không quá 25% thì giữ nguyên (đỡ phí).
+6. **Quản lý vốn**: NAV ≥ vốn + `FUTURES_GOAL_PROFIT` (+100) → đóng vị thế, **dừng**, báo "chốt lãi". NAV ≤ `FUTURES_STOP_EQUITY` (5 USDT = mất một nửa) → đóng vị thế, **dừng**. Chạy lại bằng `/futures tieptuc BNB` (mục tiêu và mức dừng tính lại từ vốn lúc đó).
+7. Lệnh là lệnh thị trường ở giá mở cửa nến kế tiếp (00:00 UTC). Sổ ảo trừ phí 0,05%, trượt giá 0,05%, funding giả định 0,03%/ngày cho lệnh long (backtest dùng funding thật). Giá dùng nến spot thay cho nến perpetual (chênh lệch thường dưới 0,1%).
 
-Các tham số được **chọn trước khi chạy thử** (đường SMA của chiến lược spot đã kiểm định, các con số tròn), không tối ưu theo kết quả.
+`FUTURES_RULE=v1` quay về bản đầu (SMA 50…200, ≥ 6/7 và ≤ 1/7, biến động 50%, cắt lỗ 3 ATR, không lọc BTC).
 
-### Kết quả backtest (sau phí và funding thật; `python -m research.futures_study`)
+### Tối ưu bằng dữ liệu backtest (`python -m research.optimize_futures`)
 
-| | TRAIN 07/2020–2023 | TEST 2024–09/2026 | giữ coin (spot) TEST |
+Quy trình được cố định trước khi chạy, để tránh "học thuộc" quá khứ. Chi tiết ở [`research/OPTIMIZE_RESULTS.md`](research/OPTIMIZE_RESULTS.md).
+
+- **2.592 bộ tham số** (bộ SMA, ngưỡng long/short, biến động mục tiêu, đòn bẩy, cắt lỗ, biên, bộ lọc BTC) × **14 coin**, nến ngày futures thật và funding thật, vốn 1000 USDT.
+- **Một bộ tham số chung cho mọi coin**, chấm bằng **Sharpe trung vị của 14 coin**.
+- **TRAIN** 07/2020–2022 để dò; lấy 20 bộ tốt nhất, chọn bộ tốt nhất trên **VALID** 2023; **TEST** 01/2024–09/2026 chỉ chạy **một lần**.
+
+| trung vị 14 coin, vốn 1000 USDT | TRAIN Sharpe | VALID Sharpe | **TEST: Sharpe / lãi năm / sụt giảm tối đa** | coin lãi ở TEST |
+|---|---|---|---|---|
+| v1 (bản đầu) | 0,45 | 0,19 | 0,32 / +3,4% / **−55%** | 9/14 |
+| **v2 (đã tối ưu)** | 0,92 | 1,26 | **0,35 / +7,4% / −35%** | 10/14 |
+
+Cách đọc:
+
+- Tối ưu **cải thiện thật nhưng vừa phải**. Lợi ích chính là **sụt giảm giảm từ −55% xuống −35%**; lãi tăng ít.
+- Sharpe giảm từ ~1 (TRAIN/VALID) xuống 0,35 ở TEST: đây là phần "học thuộc" quá khứ bị mất đi khi gặp dữ liệu mới. Nên kỳ vọng theo số TEST, không theo số TRAIN.
+- Bộ tối ưu chọn bản **không cắt lỗ**. Bot dùng bản liền kề có **cắt lỗ 4 ATR**: điểm số gần như y hệt, nhưng tránh được thanh lý khi tài khoản nhỏ bị ép đòn bẩy (bản không cắt lỗ làm cháy tài khoản 10 USDT LTC ở 5 lần thử).
+- **Xếp hạng coin không bền**: AVAX, SOL, NEAR đứng đầu ở TRAIN+VALID nhưng TEST chỉ +8%, +4%, −12%. Đừng chọn coin theo thành tích quá khứ.
+
+### Vốn 10 USDT: vì sao tín hiệu mặc định là BNB
+
+Chiến lược v2 muốn vị thế nhỏ (khoảng x0,3–0,7). Với 10 USDT, lệnh tối thiểu của sàn quyết định rủi ro thật:
+
+| TEST 2024–09/2026, bắt đầu với 10 USDT (v2) | lãi năm | sụt giảm tối đa | ghi chú |
 |---|---|---|---|
-| ETH, vốn 10 USDT (x2–3 do lệnh tối thiểu) | CAGR +56% / sụt giảm −61% | **+48% / −63%** (x2,9) | +5% / −68% |
-| ETH, vốn 1000 USDT (~x0,8) | +37% / −62% | +12% / −53% | |
-| BTC, vốn 1000 USDT (~x1) | +32% / −62% | +20% / −52% | +26% / −53% |
-| BTC, vốn 10 USDT | không giao dịch được | không giao dịch được | |
+| ETH (tối thiểu 20 USDT) | **−14,5%** | **−71%** | bị ép x2–3, gấp 5–7 lần mức thiết kế; vốn 1000 thì +27,8% / −36% |
+| BNB (5 USDT) | +10,3% | −39% | không bị ép |
+| DOGE (5 USDT) | +32,4% | −32% | |
+| XRP (5 USDT) | +10,4% | −40% | |
+| SOL (5 USDT) | −0,6% | −68% | |
+| BTC (50 USDT) | không vào được lệnh | | |
 
-Cách đọc: sụt giảm **60%** là chuyện bình thường của chiến lược này; ETH với 10 USDT có TEST đẹp **vì đòn bẩy bị ép lên x2–3 và giai đoạn TEST thuận lợi**, không phải vì nó an toàn hơn. Đây là backtest trong một giai đoạn, không có kiểm định độc lập như chiến lược spot; số liệu lạc quan hơn thực tế. Hãy chạy sổ ảo vài tháng trước khi làm theo bằng tiền thật.
+Tiêu chí chọn coin cho tín hiệu, xác định trước chứ không theo kết quả TEST: coin lớn, lệnh tối thiểu 5 USDT, biến động đủ thấp (≤ 60%/năm) để 10 × 30% ÷ biến động ≥ 5 USDT, tức không bị ép đòn bẩy. Chỉ **BNB** thoả. Đổi bằng `FUTURES_SIGNAL_SYMBOL`.
+
+Mục tiêu 10 → 110 USDT trong 3 năm: v2 **vẫn 0/62 lần đạt** với BNB, ETH, DOGE, XRP, SOL. Bù lại, số lần chạm mức dừng 5 USDT giảm mạnh (BNB, ETH, DOGE: 0/62). Chiến lược giờ **an toàn hơn**, nhưng **không nhanh hơn**: +100 USDT vẫn cần nạp thêm vốn hoặc thời gian rất dài.
 
 ### Dùng thế nào
 

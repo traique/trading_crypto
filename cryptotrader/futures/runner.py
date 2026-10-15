@@ -36,10 +36,11 @@ def bar_of(row) -> Bar:
 
 
 def step(book: FuturesBook, strategy: LongShortSma, frame: pd.DataFrame, policy: AccountPolicy,
-         funding: float | None = None) -> list[str]:
+         funding: float | None = None, btc_frame: pd.DataFrame | None = None) -> list[str]:
     """Process the frame's last candle (day D) for ``book``, then plan for D+1.
 
-    ``frame``: closed daily candles up to and including D (Date/Open/High/Low/Close)."""
+    ``frame``: closed daily candles up to and including D (Date/Open/High/Low/Close);
+    ``btc_frame``: BTCUSDT's up to D, for the strategy's BTC filter."""
     bar = bar_of(frame.iloc[-1])
     notes = book.process_day(bar, funding)
     if not bar.tradable:
@@ -67,7 +68,7 @@ def step(book: FuturesBook, strategy: LongShortSma, frame: pd.DataFrame, policy:
         notes.append(f"🛑 Vốn còn {nav:.2f} USDT ≤ mức dừng {floor:g} USDT: đóng vị thế và "
                      "dừng giao dịch.")
         return notes
-    decision = strategy.decide(frame, nav, book.qty, book.spec)
+    decision = strategy.decide(frame, nav, book.qty, book.spec, btc_frame=btc_frame)
     decision["day"] = bar.date
     book.meta["signal"] = {k: v for k, v in decision.items() if k != "vol" or v is None or np.isfinite(v)}
     if decision["trade"]:
@@ -77,11 +78,13 @@ def step(book: FuturesBook, strategy: LongShortSma, frame: pd.DataFrame, policy:
 
 def backtest(frame: pd.DataFrame, strategy: LongShortSma | None = None, capital: float = 10.0,
              policy: AccountPolicy | None = None, start: str | None = None, end: str | None = None,
-             symbol: str = "BTCUSDT", stop_at_halt: bool = False) -> FuturesBook:
+             symbol: str = "BTCUSDT", stop_at_halt: bool = False,
+             btc: pd.DataFrame | None = None) -> FuturesBook:
     """Run the daily ``step`` over ``frame`` (with an optional ``funding`` column, a fraction per day).
 
     The book starts on ``start`` (the strategy still sees the candles before it);
-    ``stop_at_halt`` ends the run when the goal or the floor is reached."""
+    ``stop_at_halt`` ends the run when the goal or the floor is reached; ``btc``: BTCUSDT's
+    daily candles for the BTC filter (without them a filtered altcoin never trades)."""
     strategy = strategy or LongShortSma()
     policy = policy or AccountPolicy(goal_profit=0.0, stop_equity=0.0)
     frame = frame.sort_values("Date").reset_index(drop=True)
@@ -91,10 +94,18 @@ def backtest(frame: pd.DataFrame, strategy: LongShortSma | None = None, capital:
     book = FuturesBook(symbol=symbol, capital=capital)
     has_funding = "funding" in frame.columns
     window = strategy.warmup_days
+    btc_dates = None
+    if btc is not None and getattr(strategy, "btc_filter", False):
+        btc = btc.sort_values("Date").reset_index(drop=True)
+        btc_dates = pd.to_datetime(btc["Date"]).to_numpy()
     for i in range(first, last):
         lo = max(0, i + 1 - window)
         funding = float(frame["funding"].iloc[i]) if has_funding else None
-        step(book, strategy, frame.iloc[lo:i + 1], policy, funding)
+        btc_frame = None
+        if btc_dates is not None:
+            j = int(np.searchsorted(btc_dates, dates.iloc[i].to_datetime64(), side="right"))
+            btc_frame = btc.iloc[max(0, j - window):j]
+        step(book, strategy, frame.iloc[lo:i + 1], policy, funding, btc_frame=btc_frame)
         if stop_at_halt and book.meta.get("halted"):
             break
     return book

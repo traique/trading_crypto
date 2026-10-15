@@ -97,7 +97,7 @@ Botkeep tự đặt `SERVER_PORT`; chạy nơi khác thì dùng `PORT` (mặc đ
 | `/khop mua BTC 0.0123 65000 [phi=coin\|usdt\|bnb] [YYYY-MM-DD]` | Báo đã khớp lệnh thật (chế độ `signal`); bán: `/khop ban BTC 0.0123 66000` |
 | `/futures` | Sổ futures long/short (ảo): NAV, vị thế, cắt lỗ, giá thanh lý, tiến độ mục tiêu; tài khoản futures thật ở chế độ `signal` |
 | `/futures chay` | Chạy ngay phần futures cho nến đã đóng |
-| `/futures tieptuc ETH` | Chạy lại sổ futures đã dừng (đạt mục tiêu hoặc chạm mức dừng); mục tiêu/mức dừng tính lại từ vốn hiện tại |
+| `/futures tieptuc BNB` | Chạy lại sổ futures đã dừng (đạt mục tiêu hoặc chạm mức dừng); mục tiêu/mức dừng tính lại từ vốn hiện tại |
 | `/fvon 10` | Số dư ví futures thật (chế độ `FUTURES_MODE=signal`); `/fvon 10 moi` đặt lại vốn gốc |
 | `/trangthai` | Hàng đợi, nhà cung cấp AI, số lượt gọi AI đã dùng, trạng thái bot |
 | `/id`, `/help` | Telegram id của bạn; hướng dẫn |
@@ -201,11 +201,12 @@ Mỗi lượt gọi AI đi theo `PROVIDER_ORDER` (mặc định `router9,groq,op
 | `LLM_MAX_CALLS_PER_DAY`, `LLM_MAX_CALLS_PER_ANALYSIS` | 300 / 10 | Ngân sách mỗi ngày (giờ VN) và mỗi lượt phân tích; vượt thì từ chối (0 = không giới hạn) |
 | `FUTURES_MODE` | `paper` | Futures long/short: `paper` / `signal` / `off` |
 | `FUTURES_SYMBOLS` | `ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,BNBUSDT` | Cặp futures, mỗi cặp một sổ ảo (cặp phải có trên Binance spot) |
-| `FUTURES_SIGNAL_SYMBOL` | `ETHUSDT` | Cặp cho tín hiệu tài khoản thật. 10 USDT không đủ cho BTCUSDT (lệnh tối thiểu 50 USDT) |
+| `FUTURES_SIGNAL_SYMBOL` | `BNBUSDT` | Cặp cho tín hiệu tài khoản thật. Với 10 USDT: ETH bị ép đòn bẩy (tối thiểu 20 USDT), BTC không vào được (50 USDT) |
+| `FUTURES_RULE` | `v2` | Bộ tham số `ls_sma`: `v2` (đã tối ưu walk-forward) hoặc `v1` (bản đầu) |
 | `FUTURES_CAPITAL` | 10 | Vốn mỗi sổ futures ảo (USDT) |
 | `FUTURES_GOAL_PROFIT` | 100 | Đạt vốn + số này: đóng vị thế và dừng (0 = không có mục tiêu) |
 | `FUTURES_STOP_EQUITY` | nửa vốn (5) | Vốn còn bằng hoặc dưới số này: đóng vị thế và dừng (0 = không dừng) |
-| `FUTURES_TARGET_VOL`, `FUTURES_MAX_LEVERAGE` | 0.5 / 2 | Biến động mục tiêu của vị thế (%/năm) và đòn bẩy tối đa |
+| `FUTURES_TARGET_VOL`, `FUTURES_MAX_LEVERAGE` | theo `FUTURES_RULE` (v2: 0.3 / 2) | Ghi đè biến động mục tiêu và đòn bẩy tối đa |
 | `FUTURES_MIN_ORDER_LEVERAGE` | 3 | Đòn bẩy cao nhất chấp nhận để đạt lệnh tối thiểu của sàn |
 | `FUTURES_FUNDING_PCT_DAY`, `CRYPTO_FUT_TAKER_FEE_PCT`, `CRYPTO_FUT_SLIPPAGE_PCT` | 0.03 / 0.05 / 0.05 | Funding giả định cho lệnh long (%/ngày); phí và trượt giá futures (% mỗi lệnh) |
 

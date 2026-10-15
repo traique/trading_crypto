@@ -62,7 +62,8 @@ def test_ten_usdt_is_too_small_for_btc_and_the_report_says_so(settings, market):
 
 
 def test_signal_mode_sizes_the_real_target_on_the_reported_equity(settings, market):
-    _set(settings, futures_mode="signal")
+    assert settings.futures_signal_symbol == "BNBUSDT"            # the default (not in the fake market)
+    _set(settings, futures_mode="signal", futures_signal_symbol=ETH)
     futures = FuturesTrader(settings)
     assert "/fvon" in futures.catch_up("2026-10-14").text
     assert "vốn gốc 10" in futures.set_real_equity(10)

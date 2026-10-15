@@ -123,8 +123,11 @@ def test_book_round_trips_through_json():
 
 
 # ── strategy ──
+V1 = LongShortSma.preset("v1")
+
+
 def test_direction_needs_six_of_seven_smas_for_long_and_one_for_short():
-    s = LongShortSma()
+    s = V1
     up = np.linspace(1000, 3000, 260)
     down = np.linspace(3000, 1000, 260)
     assert s.direction(up) == (1, 7)
@@ -135,7 +138,7 @@ def test_direction_needs_six_of_seven_smas_for_long_and_one_for_short():
 
 
 def test_ten_usdt_cannot_trade_btc_but_trades_eth_at_the_minimum():
-    s = LongShortSma()
+    s = V1
     up = _frame(np.linspace(40_000, 80_000, 260))
     btc = s.decide(up, 10.0, 0.0, spec_for("BTCUSDT"))
     assert not btc["trade"] and btc["qty"] == 0
@@ -151,7 +154,7 @@ def test_ten_usdt_cannot_trade_btc_but_trades_eth_at_the_minimum():
 
 
 def test_volatility_targeting_caps_leverage_and_the_band_keeps_a_close_position():
-    s = LongShortSma()
+    s = V1
     rng = np.random.default_rng(0)
     closes = np.exp(np.cumsum(rng.normal(0.004, 0.01, 260))) * 2000
     frame = _frame(closes)
@@ -190,7 +193,7 @@ def test_backtest_trades_a_trend_both_ways_without_look_ahead():
     up = np.linspace(1000, 3000, 400)
     down = np.linspace(3000, 1200, 400)
     frame = _frame(np.concatenate([up, down]))
-    book = backtest(frame, capital=1000.0, symbol="ETHUSDT")
+    book = backtest(frame, V1, capital=1000.0, symbol="ETHUSDT")
     sides = {t["side"] for t in book.trades}
     assert sides == {"BUY", "SELL"}
     assert any(h["qty"] < 0 for h in book.history) and any(h["qty"] > 0 for h in book.history)
@@ -221,3 +224,26 @@ def test_contract_filters_are_refreshed_from_exchange_info_and_cached(tmp_path):
     finally:
         fr.SPECS.clear()
         fr.SPECS.update(saved)
+
+
+def test_v2_is_the_default_and_the_btc_filter_keeps_an_altcoin_with_btc():
+    s = LongShortSma()
+    assert (s.lookbacks, s.short_max, s.target_vol, s.stop_atr, s.btc_filter) == ((20, 30, 40, 50, 60, 70, 80),
+                                                                                    2, 0.3, 4.0, True)
+    up = _frame(np.linspace(1000, 2000, 120) * (1 + 0.02 * np.sin(np.arange(120))))
+    up.loc[up.index[-1], "Close"] = up["Close"].max() * 1.01
+    btc_up = _frame(np.linspace(40_000, 80_000, 120))
+    btc_down = _frame(np.linspace(80_000, 40_000, 120))
+    spec = spec_for("ETHUSDT")
+    with_btc = s.decide(up, 1000.0, 0.0, spec, btc_frame=btc_up)
+    assert with_btc["trade"] and with_btc["qty"] > 0 and with_btc["stop_dist"] > 0
+    against = s.decide(up, 1000.0, 0.0, spec, btc_frame=btc_down)
+    assert against["qty"] == 0 and "bộ lọc BTC" in against["reason"]
+    assert s.decide(up, 1000.0, 0.0, spec)["qty"] == 0                    # no BTC data: flat
+    stale = s.decide(up, 1000.0, 0.0, spec, btc_frame=btc_up.iloc[:-1])   # BTC candle of the day missing
+    assert stale["qty"] == 0
+    # BTC itself is never filtered.
+    assert s.decide(btc_up, 10_000.0, 0.0, spec_for("BTCUSDT"))["trade"]
+    with pytest.raises(ValueError):
+        LongShortSma.preset("v9")
+    assert LongShortSma.preset("v1", target_vol=None).target_vol == 0.5

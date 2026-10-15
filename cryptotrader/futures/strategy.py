@@ -1,27 +1,37 @@
 """Long/short trend rule for one perpetual contract, with volatility-targeted size and a stop.
 
-``ls_sma`` extends the evaluated spot rule (``btc_sma_ens``: 7 SMAs of 50..200
-days) to both directions:
+``ls_sma`` counts how many simple moving averages the daily close is above:
 
-1. Direction, from the daily closes up to decision day D: count the SMAs
-   (50, 75, ..., 200 days) the close is above. At least ``long_min`` (6 of 7)
-   -> LONG; at most ``short_max`` (1 of 7) -> SHORT; otherwise FLAT. Fewer
-   than 201 closes -> FLAT. Only strong, agreeing trends are traded.
-2. Size: leverage = ``target_vol`` / realised volatility (30 days,
+1. Direction, from the daily closes up to decision day D: at least
+   ``long_min`` of the 7 SMAs -> LONG; at most ``short_max`` -> SHORT;
+   otherwise FLAT (and FLAT during the warm-up).
+2. BTC filter (``btc_filter``): an altcoin trades only in the direction of
+   BTC's own signal on the same day (BTC flat -> the altcoin is flat too).
+3. Size: leverage = ``target_vol`` / realised volatility (30 days,
    annualised), capped at ``max_leverage``; notional = leverage x equity.
-   With the defaults (50% target, cap 2x) BTC trades at about 1x.
-3. Exchange minimum: an order below the contract's minimum notional is
+4. Exchange minimum: an order below the contract's minimum notional is
    raised to it when that needs no more than ``min_order_max_leverage``
    (default 3x); otherwise the book stays flat and says how much capital the
-   contract needs. With 10 USDT this is what decides the leverage: ETHUSDT
-   (minimum 20 USDT) trades at 2-3x, BTCUSDT (100 USDT) cannot be traded.
-4. Stop: ``stop_atr`` x ATR(14) from the entry, sent with the position.
-5. Band: a position in the same direction is resized only when the target
+   contract needs. With 10 USDT this decides the leverage: ETHUSDT (minimum
+   20 USDT) trades at 2-3x, BTCUSDT (50 USDT) cannot be traded.
+5. Stop: ``stop_atr`` x ATR(14) from the entry, sent with the position.
+6. Band: a position in the same direction is resized only when the target
    differs by more than ``band`` (25%) of it, to save fees.
 
-The parameters were fixed before testing (the spot rule's lookbacks, round
-risk numbers), not optimised. ``research/futures_study.py`` reports how the
-rule did on Binance perpetual data 2020-2026 after fees and real funding.
+Two parameter sets (``PRESETS``):
+
+- ``v2`` (default): chosen by the walk-forward optimisation of
+  ``research/optimize_futures.py`` (2592 rules, 14 coins, best median Sharpe
+  on TRAIN 2020-2022, then the best of the top 20 on VALID 2023, TEST
+  2024-09/2026 run once): SMAs of 20..80 days, long at >= 6/7, short at
+  <= 2/7, 30% target volatility, BTC filter, a 4-ATR stop (the optimiser's
+  pick had none; the 4-ATR neighbour scores the same and keeps a forced-
+  leverage 10 USDT account from being liquidated). TEST, median of 14 coins,
+  1000 USDT: +7.4%/year, max drawdown -35% (v1: +3.4%, -55%).
+- ``v1``: the first rule (SMAs 50..200 of the spot strategy, >= 6/7 and
+  <= 1/7, 50% target volatility, 3-ATR stop, no BTC filter), fixed before
+  any test.
+
 Nothing here promises a profit; with leverage, losses are faster too.
 """
 
@@ -36,6 +46,15 @@ import pandas as pd
 from cryptotrader.futures.rules import FuturesSpec
 
 LOOKBACKS: tuple[int, ...] = (50, 75, 100, 125, 150, 175, 200)
+FAST_LOOKBACKS: tuple[int, ...] = (20, 30, 40, 50, 60, 70, 80)
+BTC = "BTCUSDT"
+
+PRESETS: dict[str, dict] = {
+    "v2": {"lookbacks": FAST_LOOKBACKS, "long_min": 6, "short_max": 2, "target_vol": 0.3,
+           "max_leverage": 2.0, "stop_atr": 4.0, "band": 0.25, "btc_filter": True},
+    "v1": {"lookbacks": LOOKBACKS, "long_min": 6, "short_max": 1, "target_vol": 0.5,
+           "max_leverage": 2.0, "stop_atr": 3.0, "band": 0.25, "btc_filter": False},
+}
 
 
 def atr(frame: pd.DataFrame, n: int = 14) -> float | None:
@@ -60,15 +79,23 @@ def realised_vol(closes: np.ndarray, n: int = 30) -> float | None:
 
 @dataclass
 class LongShortSma:
-    lookbacks: tuple[int, ...] = LOOKBACKS
+    lookbacks: tuple[int, ...] = FAST_LOOKBACKS
     long_min: int = 6
-    short_max: int = 1
-    target_vol: float = 0.5
+    short_max: int = 2
+    target_vol: float = 0.3
     max_leverage: float = 2.0
     min_order_max_leverage: float = 3.0
-    stop_atr: float = 3.0
+    stop_atr: float = 4.0
     band: float = 0.25
+    btc_filter: bool = True
     name: str = "ls_sma"
+
+    @classmethod
+    def preset(cls, name: str = "v2", **overrides) -> LongShortSma:
+        """The ``v2`` (optimised, default) or ``v1`` parameter set, with ``overrides``."""
+        if name not in PRESETS:
+            raise ValueError(f"unknown ls_sma preset {name!r}: {', '.join(PRESETS)}")
+        return cls(**{**PRESETS[name], **{k: v for k, v in overrides.items() if v is not None}})
 
     @property
     def warmup_days(self) -> int:
@@ -86,7 +113,17 @@ class LongShortSma:
             return -1, above
         return 0, above
 
-    def decide(self, frame: pd.DataFrame, equity: float, current_qty: float, spec: FuturesSpec) -> dict:
+    def btc_direction(self, btc_frame: pd.DataFrame | None, day) -> int:
+        """BTC's own direction on ``day`` (0 when its candle of that day is missing)."""
+        if btc_frame is None or not len(btc_frame):
+            return 0
+        if pd.Timestamp(btc_frame["Date"].iloc[-1]).normalize() != pd.Timestamp(day).normalize():
+            return 0
+        closes = btc_frame["Close"].to_numpy(dtype=float)
+        return self.direction(closes[np.isfinite(closes)][-self.warmup_days:])[0]
+
+    def decide(self, frame: pd.DataFrame, equity: float, current_qty: float, spec: FuturesSpec,
+               btc_frame: pd.DataFrame | None = None) -> dict:
         """The target for the next candle from candles up to the decision day (the frame's last row).
 
         Returns {"trade": bool, "qty": signed target, "stop_dist", "direction", "above", "leverage",
@@ -102,8 +139,19 @@ class LongShortSma:
         price = float(closes[-1])
         direction, above = self.direction(closes)
         out.update(direction=direction, above=above)
+        filtered = ""
+        if self.btc_filter and direction and spec.symbol != BTC:
+            btc_dir = self.btc_direction(btc_frame, frame["Date"].iloc[-1])
+            if btc_dir != direction:
+                filtered = ("BTC đang " + {1: "tăng", -1: "giảm", 0: "không rõ xu hướng"}[btc_dir]
+                            + f", ngược/không cùng chiều {'LONG' if direction > 0 else 'SHORT'}")
+                direction = 0
+                out["direction"] = 0
         if len(closes) < max(self.lookbacks) + 1:
             out["reason"] = f"mới có {len(closes)} nến, cần {max(self.lookbacks) + 1} - đứng ngoài"
+            target = 0.0
+        elif direction == 0 and filtered:
+            out["reason"] = f"giá trên {above}/{len(self.lookbacks)} SMA nhưng {filtered} (bộ lọc BTC) - đứng ngoài"
             target = 0.0
         elif direction == 0:
             out["reason"] = f"giá trên {above}/{len(self.lookbacks)} SMA: không có xu hướng rõ - đứng ngoài"
@@ -126,7 +174,11 @@ class LongShortSma:
                 cap = max(self.max_leverage, self.min_order_max_leverage)
                 if need_lev <= cap + 1e-9:
                     qty = need
-                    note = f", nâng lên lệnh tối thiểu của sàn {spec.min_notional:g} USDT → đòn bẩy thực x{need_lev:.1f}"
+                    note = (f", nâng lên lệnh tối thiểu của sàn {spec.min_notional:g} USDT → đòn bẩy thực "
+                            f"x{need_lev:.1f}")
+                    if lev > 0 and need_lev > 2 * lev:
+                        note += (f" (⚠️ gấp {need_lev / lev:.0f} lần mức chiến lược muốn x{lev:.2f}: vốn quá nhỏ "
+                                 "cho cặp này, rủi ro cao hơn thiết kế)")
                 else:
                     qty = 0.0
                     note = (f", nhưng vốn {equity:.2f} USDT quá nhỏ cho {spec.symbol}: lệnh tối thiểu "

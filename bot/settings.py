@@ -125,13 +125,15 @@ class Settings:
     # Futures (USDⓈ-M perpetuals, long/short): paper books and signals; see bot/futures_bot.py.
     futures_mode: str = "paper"         # paper | signal | off
     futures_symbols: tuple[str, ...] = ("ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "BNBUSDT")
-    futures_signal_symbol: str = "ETHUSDT"
+    futures_signal_symbol: str = "BNBUSDT"
     futures_capital: float = 10.0       # starting USDT of each futures paper book
     futures_goal_profit: float = 100.0  # close and stop at capital + this (0 = no goal)
     futures_stop_equity: float = 5.0    # close and stop at or below this equity (0 = never)
-    futures_max_leverage: float = 2.0   # cap of the volatility-targeted size
-    futures_min_order_leverage: float = 3.0   # highest leverage accepted to reach the exchange minimum
-    futures_target_vol: float = 0.5     # annualised volatility the position aims at
+    futures_rule: str = "v2"            # ls_sma preset: v2 (optimised, default) or v1
+    # None = the preset's own value
+    futures_max_leverage: float | None = None   # cap of the volatility-targeted size
+    futures_min_order_leverage: float = 3.0     # highest leverage accepted to reach the exchange minimum
+    futures_target_vol: float | None = None     # annualised volatility the position aims at
     extra: dict = field(default_factory=dict)
 
     @property
@@ -181,10 +183,25 @@ def load(env_file: str | Path | None = None) -> Settings:
     )
 
 
+def _optional(name: str, low: float, high: float) -> float | None:
+    """A number from the environment clamped to [low, high]; None when unset or invalid."""
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("%s=%r is not a number; using the strategy's own value", name, raw)
+        return None
+    return min(max(value, low), high) if value == value else None
+
+
 def _futures_settings() -> dict:
     # ETH plus the most traded altcoins as paper books (watch them on new data); signals follow ETH.
     symbols = _symbols("FUTURES_SYMBOLS", ("ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "BNBUSDT"))
-    signal = _symbols("FUTURES_SIGNAL_SYMBOL", (symbols[0],))[0]
+    # BNB: the major whose volatility lets a 10 USDT account reach the 5 USDT minimum at the
+    # strategy's own size (see README); ETH's 20 USDT minimum forces 2-3x on 10 USDT.
+    signal = _symbols("FUTURES_SIGNAL_SYMBOL", ("BNBUSDT",))[0]
     if signal not in symbols:
         logger.warning("FUTURES_SIGNAL_SYMBOL %s is not in FUTURES_SYMBOLS; adding it", signal)
         symbols = (*symbols, signal)
@@ -198,7 +215,8 @@ def _futures_settings() -> dict:
         "futures_capital": capital,
         "futures_goal_profit": max(0.0, _float("FUTURES_GOAL_PROFIT", 100.0)),
         "futures_stop_equity": max(0.0, _float("FUTURES_STOP_EQUITY", capital / 2)),
-        "futures_max_leverage": min(max(_float("FUTURES_MAX_LEVERAGE", 2.0), 0.1), 20.0),
+        "futures_rule": _choice("FUTURES_RULE", ("v2", "v1"), "v2"),
+        "futures_max_leverage": _optional("FUTURES_MAX_LEVERAGE", 0.1, 20.0),
         "futures_min_order_leverage": min(max(_float("FUTURES_MIN_ORDER_LEVERAGE", 3.0), 0.1), 20.0),
-        "futures_target_vol": min(max(_float("FUTURES_TARGET_VOL", 0.5), 0.05), 5.0),
+        "futures_target_vol": _optional("FUTURES_TARGET_VOL", 0.05, 5.0),
     }
