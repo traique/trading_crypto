@@ -2,6 +2,15 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/). Ngày theo UTC.
 
+## [Chưa phát hành] - 2026-10-15 (altcoin, phân tích gọn)
+
+### Thay đổi
+
+- **Giới hạn AI chặt hơn cho 9Router:** nghỉ ngẫu nhiên 10–20 giây sau mỗi lượt gọi (`LLM_MIN_INTERVAL_SEC`, `LLM_MAX_INTERVAL_SEC`, tính từ lúc lượt trước xong); tối đa 10 lượt mỗi phân tích (`LLM_MAX_CALLS_PER_ANALYSIS`). Lượt "gọi" không gửi yêu cầu nào (mô hình không có structured output) không bị tính.
+- **Phân tích gọn** `CRYPTO_AGENTS_PROFILE=lite` (mặc định): không tranh luận Bull/Bear, không nhóm rủi ro, một vòng công cụ mỗi analyst → khoảng 9 lượt gọi; `full` là bản đầy đủ. Graph bỏ hẳn các nút khi số vòng là 0.
+- **Futures altcoin:** thông số hợp đồng thật cho 19 cặp (BTCUSDT nay tối thiểu 50 USDT) và tự cập nhật từ exchangeInfo của Binance mỗi ngày; mặc định thêm sổ ảo SOL, XRP, DOGE, BNB cạnh ETH (tín hiệu thật vẫn theo ETH). Cặp không có nến không làm chậm các cặp khác.
+- README: bảng backtest 17 altcoin và thử nghiệm "xoay vòng altcoin mạnh nhất" (lỗ nặng, không đưa vào bot).
+
 ## [Chưa phát hành] - 2026-10-15 (futures và giới hạn AI)
 
 ### Thêm

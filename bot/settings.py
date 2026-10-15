@@ -124,7 +124,7 @@ class Settings:
     trusted_proxy_ips: str = "127.0.0.1"
     # Futures (USDⓈ-M perpetuals, long/short): paper books and signals; see bot/futures_bot.py.
     futures_mode: str = "paper"         # paper | signal | off
-    futures_symbols: tuple[str, ...] = ("ETHUSDT",)
+    futures_symbols: tuple[str, ...] = ("ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "BNBUSDT")
     futures_signal_symbol: str = "ETHUSDT"
     futures_capital: float = 10.0       # starting USDT of each futures paper book
     futures_goal_profit: float = 100.0  # close and stop at capital + this (0 = no goal)
@@ -182,7 +182,8 @@ def load(env_file: str | Path | None = None) -> Settings:
 
 
 def _futures_settings() -> dict:
-    symbols = _symbols("FUTURES_SYMBOLS", ("ETHUSDT",))
+    # ETH plus the most traded altcoins as paper books (watch them on new data); signals follow ETH.
+    symbols = _symbols("FUTURES_SYMBOLS", ("ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "BNBUSDT"))
     signal = _symbols("FUTURES_SIGNAL_SYMBOL", (symbols[0],))[0]
     if signal not in symbols:
         logger.warning("FUTURES_SIGNAL_SYMBOL %s is not in FUTURES_SYMBOLS; adding it", signal)

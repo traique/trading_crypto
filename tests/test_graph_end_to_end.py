@@ -289,3 +289,33 @@ def test_an_analysis_over_its_llm_call_budget_still_completes(tmp_path, monkeypa
     # The next analysis has its own budget.
     graph.propagate("btc", DAY)
     assert GATE.status()["total"] == 6
+
+
+def test_the_lite_profile_fits_about_ten_llm_calls(tmp_path, monkeypatch, offline):
+    """CRYPTO_AGENTS_PROFILE=lite: no debate, no risk team, one tool round per analyst; the
+    managers still decide and the run ends with the system's rating."""
+    from cryptotrader.llm_clients import fallback_client as fc
+    from cryptotrader.llm_clients.rate_gate import GATE
+
+    monkeypatch.setenv("CRYPTO_AGENTS_PROFILE", "lite")
+    monkeypatch.setenv("LLM_MAX_CALLS_PER_ANALYSIS", "10")
+    fc.reset_provider_state()
+    model = fc.FallbackChatModel(chain=[("groq", ScriptedModel())], degrade=True)
+    graph = _graph(tmp_path, monkeypatch, model)
+    assert graph.config["max_debate_rounds"] == 0 and graph.config["max_tool_rounds"] == 1
+    assert "Bull Researcher" not in graph.workflow.nodes and "Aggressive Analyst" not in graph.workflow.nodes
+    state, rating = graph.propagate("btc", DAY)
+    assert rating == state["quant_decision"]["action"] == "BUY"
+    for key in ("market_report", "investment_plan", "trader_investment_plan", "final_trade_decision"):
+        assert state[key].strip(), key
+    assert GATE.status()["total"] <= 10 and GATE.status()["refused"] == 0
+    assert "AI không khả dụng" not in state["guard_notes"]
+    graph.save_reports(state, "BTCUSDT", save_path=tmp_path / "rep")
+
+
+def test_a_caller_config_beats_the_profile(tmp_path, monkeypatch, offline):
+    monkeypatch.setenv("CRYPTO_AGENTS_PROFILE", "lite")
+    graph = _graph(tmp_path, monkeypatch, ScriptedModel(), max_debate_rounds=2)
+    assert graph.config["max_debate_rounds"] == 2 and graph.config["max_risk_discuss_rounds"] == 0
+    full = _graph(tmp_path, monkeypatch, ScriptedModel(), analysis_profile="full")
+    assert full.config["max_risk_discuss_rounds"] == 1 and "Bull Researcher" in full.workflow.nodes

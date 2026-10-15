@@ -110,14 +110,19 @@ class GraphSetup:
         for spec in specs:
             workflow.add_node(spec.agent_node, _analyst_graph(spec, factories[spec.key](), self.max_tool_rounds))
         workflow.add_node("Quant Engine", create_quant_engine(self.engine_config))
-        workflow.add_node("Bull Researcher", create_bull_researcher(quick))
-        workflow.add_node("Bear Researcher", create_bear_researcher(quick))
+        # 0 rounds (the "lite" profile, few LLM calls): the managers decide without the debates.
+        debate = int(self.conditional_logic.max_debate_rounds) > 0
+        risk_team = int(self.conditional_logic.max_risk_discuss_rounds) > 0
+        if debate:
+            workflow.add_node("Bull Researcher", create_bull_researcher(quick))
+            workflow.add_node("Bear Researcher", create_bear_researcher(quick))
         workflow.add_node("Research Manager",
                           guard_early(create_research_manager(deep), "investment_plan", "Research Manager"))
         workflow.add_node("Trader", guard_early(create_trader(quick), "trader_investment_plan", "Trader"))
-        workflow.add_node("Aggressive Analyst", create_aggressive_debator(quick))
-        workflow.add_node("Conservative Analyst", create_conservative_debator(quick))
-        workflow.add_node("Neutral Analyst", create_neutral_debator(quick))
+        if risk_team:
+            workflow.add_node("Aggressive Analyst", create_aggressive_debator(quick))
+            workflow.add_node("Conservative Analyst", create_conservative_debator(quick))
+            workflow.add_node("Neutral Analyst", create_neutral_debator(quick))
         workflow.add_node("Portfolio Manager", create_portfolio_manager(deep))
         workflow.add_node("Output Guard", create_output_guard())
 
@@ -125,14 +130,20 @@ class GraphSetup:
         first_steps = [spec.agent_node for spec in specs] + ["Quant Engine"]
         for node in first_steps:
             workflow.add_edge(START, node)
-        workflow.add_edge(first_steps, "Bull Researcher")
-        for node in ("Bull Researcher", "Bear Researcher"):
-            workflow.add_conditional_edges(node, self.conditional_logic.should_continue_debate, DEBATE_PATH_MAP)
+        if debate:
+            workflow.add_edge(first_steps, "Bull Researcher")
+            for node in ("Bull Researcher", "Bear Researcher"):
+                workflow.add_conditional_edges(node, self.conditional_logic.should_continue_debate, DEBATE_PATH_MAP)
+        else:
+            workflow.add_edge(first_steps, "Research Manager")
         workflow.add_edge("Research Manager", "Trader")
-        workflow.add_edge("Trader", "Aggressive Analyst")
-        for node in ("Aggressive Analyst", "Conservative Analyst", "Neutral Analyst"):
-            workflow.add_conditional_edges(node, self.conditional_logic.should_continue_risk_analysis,
-                                           RISK_ANALYSIS_PATH_MAP)
+        if risk_team:
+            workflow.add_edge("Trader", "Aggressive Analyst")
+            for node in ("Aggressive Analyst", "Conservative Analyst", "Neutral Analyst"):
+                workflow.add_conditional_edges(node, self.conditional_logic.should_continue_risk_analysis,
+                                               RISK_ANALYSIS_PATH_MAP)
+        else:
+            workflow.add_edge("Trader", "Portfolio Manager")
         workflow.add_edge("Portfolio Manager", "Output Guard")
         workflow.add_edge("Output Guard", END)
         return workflow

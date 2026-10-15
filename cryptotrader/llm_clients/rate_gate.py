@@ -8,14 +8,17 @@ tried) first passes this gate, which:
 
 - lets at most ``LLM_MAX_CONCURRENT`` requests run at once (default 1: strictly
   one after the other);
-- spaces the starts of two requests by at least ``LLM_MIN_INTERVAL_SEC``
-  (default 1.5 s);
+- leaves a pause between two requests: from the END of one to the start of
+  the next, a random time between ``LLM_MIN_INTERVAL_SEC`` and
+  ``LLM_MAX_INTERVAL_SEC`` (default 10-20 s), drawn anew for each request, so
+  the gateway rests and the calls do not come at a fixed rhythm;
 - keeps at most ``LLM_MAX_CALLS_PER_MINUTE`` / ``_PER_HOUR`` requests in any
   sliding minute / hour (defaults 20 / 0 = off): a request over the limit
   WAITS for a free slot, at most ``LLM_MAX_WAIT_SEC`` (default 300 s);
 - allows at most ``LLM_MAX_CALLS_PER_DAY`` requests per Vietnam calendar day
   (default 300), and at most ``LLM_MAX_CALLS_PER_ANALYSIS`` per analysis
-  (default 60, see ``analysis_budget``): over these the request is REFUSED at
+  (default 10, see ``analysis_budget``; the "lite" analysis profile makes
+  about 9): over these the request is REFUSED at
   once with ``LLMBudgetExceeded``.
 
 A refused request is not a provider failure: the chain stops (it does not try
@@ -33,6 +36,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import random
 import threading
 import time
 from collections import deque
@@ -65,11 +69,12 @@ def limits() -> dict:
     """The gate's limits, read from the environment on every call (so a .env loaded late counts)."""
     return {
         "max_concurrent": max(1, int(_env_num("LLM_MAX_CONCURRENT", 1))),
-        "min_interval": _env_num("LLM_MIN_INTERVAL_SEC", 1.5),
+        "min_interval": (low := _env_num("LLM_MIN_INTERVAL_SEC", 10.0)),
+        "max_interval": max(low, _env_num("LLM_MAX_INTERVAL_SEC", max(low, 20.0))),
         "per_minute": int(_env_num("LLM_MAX_CALLS_PER_MINUTE", 20)),
         "per_hour": int(_env_num("LLM_MAX_CALLS_PER_HOUR", 0)),
         "per_day": int(_env_num("LLM_MAX_CALLS_PER_DAY", 300)),
-        "per_analysis": int(_env_num("LLM_MAX_CALLS_PER_ANALYSIS", 60)),
+        "per_analysis": int(_env_num("LLM_MAX_CALLS_PER_ANALYSIS", 10)),
         "max_wait": _env_num("LLM_MAX_WAIT_SEC", 300),
     }
 
@@ -100,13 +105,16 @@ _current_budget: ContextVar[_Budget | None] = ContextVar("llm_analysis_budget", 
 class RateGate:
     """The process-wide gate; see the module docstring. ``clock``/``sleep`` are for tests."""
 
-    def __init__(self, clock=time.monotonic, sleep=time.sleep, today=None):
+    def __init__(self, clock=time.monotonic, sleep=time.sleep, today=None, rng=None):
         self._clock, self._sleep = clock, sleep
         self._today = today or (lambda: datetime.now(_VN).strftime("%Y-%m-%d"))
         self._cond = threading.Condition()
         self._running = 0
         self._waiting = 0
+        self._rng = rng or random.Random()
         self._last_start = -1e18
+        self._last_end = -1e18
+        self._pause = 0.0                          # drawn when a request ends
         self._starts: deque[float] = deque()      # start times within the last hour
         self._day = ""
         self._day_count = 0
@@ -125,7 +133,8 @@ class RateGate:
         """Seconds until a new request may start (0 = now)."""
         if self._running >= lim["max_concurrent"]:
             return 0.25                                  # woken by release(); poll as a fallback
-        wait = max(0.0, self._last_start + lim["min_interval"] - now)
+        pause = min(max(self._pause, lim["min_interval"]), lim["max_interval"])
+        wait = max(0.0, max(self._last_start, self._last_end) + pause - now)
         for seconds, cap in ((60, lim["per_minute"]), (3600, lim["per_hour"])):
             if cap and self._in_window(now, seconds) >= cap:
                 inside = [t for t in self._starts if now - t < seconds]
@@ -191,6 +200,9 @@ class RateGate:
     def release(self) -> None:
         with self._cond:
             self._running = max(0, self._running - 1)
+            lim = limits()
+            self._last_end = self._clock()
+            self._pause = self._rng.uniform(lim["min_interval"], lim["max_interval"])
             self._cond.notify_all()
 
     @contextlib.contextmanager
@@ -200,6 +212,20 @@ class RateGate:
             yield
         finally:
             self.release()
+
+    def refund(self) -> None:
+        """Give back the last slot: the call raised before any request was sent
+        (a model without structured output, ``NotImplementedError``)."""
+        budget = _current_budget.get()
+        if budget is not None:
+            budget.give_back()
+        with self._cond:
+            self._day_count = max(0, self._day_count - 1)
+            self._total = max(0, self._total - 1)
+            if self._starts:
+                self._starts.pop()
+            self._pause = 0.0
+            self._last_end = self._last_start = -1e18
 
     def status(self) -> dict:
         lim = limits()
@@ -214,7 +240,8 @@ class RateGate:
     def reset(self) -> None:
         with self._cond:
             self._running = self._waiting = 0
-            self._last_start = -1e18
+            self._last_start = self._last_end = -1e18
+            self._pause = 0.0
             self._starts.clear()
             self._day, self._day_count, self._total, self._refused = "", 0, 0, 0
             self._cond.notify_all()
@@ -233,7 +260,10 @@ def status_line() -> str:
     day = f"{s['today']}/{s['per_day']}" if s["per_day"] else f"{s['today']} (không giới hạn)"
     minute = f"{s['last_minute']}/{s['per_minute']}" if s["per_minute"] else str(s["last_minute"])
     mode = "tuần tự" if s["max_concurrent"] == 1 else f"tối đa {s['max_concurrent']} cùng lúc"
-    return (f"Giới hạn gọi AI: {mode}, cách nhau ≥{s['min_interval']:g}s; phút này {minute}; hôm nay {day}; "
+    gap = (f"{s['min_interval']:g}s" if s["max_interval"] == s["min_interval"]
+           else f"{s['min_interval']:g}-{s['max_interval']:g}s")
+    per = f", tối đa {s['per_analysis']} lượt/phân tích" if s["per_analysis"] else ""
+    return (f"Giới hạn gọi AI: {mode}, nghỉ {gap} giữa hai lượt{per}; phút này {minute}; hôm nay {day}; "
             f"đang chạy {s['running']}, đang chờ {s['waiting']}; bị từ chối {s['refused']}")
 
 

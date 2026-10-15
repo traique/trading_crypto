@@ -110,11 +110,41 @@ Tái lập: `python -m research.futures_study --symbols ETHUSDT [--target-vol 1.
 
 Nghĩa là: **muốn x11 trong vài năm thì phải dùng đòn bẩy cao, và khi đó khả năng cháy tài khoản cao gấp nhiều lần khả năng đạt mục tiêu.** Bot vì vậy chọn mức rủi ro vừa phải và coi +100 USDT là **mục tiêu dài hạn** có điểm dừng rõ ràng, không phải lời hứa. Cách thực tế hơn để có +100 USDT là **nạp thêm vốn đều đặn** (vốn lớn hơn thì cùng mức lãi % ra nhiều USDT hơn, và giao dịch được cả BTC).
 
+### Altcoin có giúp đạt mục tiêu nhanh hơn không? Dữ liệu nói: không
+
+Altcoin biến động mạnh hơn nên lãi nhanh hơn **và lỗ cũng nhanh hơn**. Cùng chiến lược, vốn 10 USDT, dữ liệu futures thật (TEST = 01/2024–09/2026; "3 năm" = mọi tháng bắt đầu từ 2020, dừng ở 5 USDT):
+
+| cặp | TEST mặc định: lãi/năm, sụt giảm | 3 năm mặc định: đạt 110 / chạm dừng | 3 năm mạo hiểm (x5): đạt 110 / chạm dừng |
+|---|---|---|---|
+| ETH | +48%, −63% | 0 / 6 (62 lần) | 2 / 56 |
+| BNB | +49%, −52% | 0 / 6 (60) | 14 / 34 |
+| TRX | +27%, −56% | 0 / 28 (61) | 3 / 47 |
+| ARB | +27%, −39% | 0 / 0 (23) | 0 / 8 |
+| SUI | +22%, −57% | 0 / 6 (22) | 0 / 18 |
+| DOGE | +20%, −41% | 0 / 20 (55) | 0 / 41 |
+| ADA | +9%, −56% | 0 / 6 (61) | 0 / 48 |
+| APT | +2%, −60% | 0 / 5 (28) | 0 / 28 |
+| XRP | −2%, −69% | 0 / 45 (61) | 0 / 55 |
+| DOT | −3%, −70% | 0 / 26 (54) | 0 / 54 |
+| SOL | −8%, −72% | 0 / 28 (53) | 2 / 49 |
+| OP | −9%, −69% | 0 / 12 (33) | 0 / 32 |
+| AVAX | −14%, −80% | 3 / 42 (53) | 3 / 42 |
+| LTC | −17%, −40% | 0 / 8 (61) | 0 / 61 |
+| LINK | −18%, −42% | 0 / 9 (61) | 0 / 57 |
+| UNI | −48%, −90% | 0 / 40 (53) | 0 / 53 |
+| NEAR | −49%, −90% | 0 / 30 (52) | 4 / 40 |
+
+- Phần lớn altcoin **lỗ** với quy tắc theo xu hướng: altcoin hay tăng vọt rồi sập, xu hướng ít bền.
+- Chọn cặp đứng đầu bảng (BNB) sau khi đã xem bảng là **chọn theo kết quả quá khứ** - không có gì bảo đảm nó dẫn đầu ở giai đoạn tới.
+- Thử thêm cách "săn altcoin mạnh nhất" (mỗi tuần vào altcoin xu hướng mạnh nhất trong 17 cặp, short cặp yếu nhất khi thị trường giảm): TEST **−52%/năm**, 49/55 lần chạm mức dừng. Cách này mua đúng đỉnh các đợt pump; **không** đưa vào bot.
+
+Vì vậy bot mặc định chạy **sổ ảo** cho ETH và 4 altcoin thanh khoản cao (SOL, XRP, DOGE, BNB) để bạn theo dõi trên dữ liệu mới, còn tín hiệu tài khoản thật vẫn theo **ETH** (`FUTURES_SIGNAL_SYMBOL`). Muốn chạy altcoin khác: đặt `FUTURES_SYMBOLS` (cặp phải có trên Binance spot vì bot dùng nến spot) và kiểm tra trước bằng `python -m research.futures_study --symbols <CẶP>`.
+
 ### Lệnh tối thiểu của sàn quyết định với 10 USDT
 
-Binance futures có giá trị lệnh tối thiểu: **BTCUSDT 100 USDT, ETHUSDT 20 USDT**, nhiều cặp khác 5 USDT (kiểm tra lại trên Binance, có thể đổi). Với 10 USDT:
+Binance futures có giá trị lệnh tối thiểu: **BTCUSDT 50 USDT, ETHUSDT/LTC/LINK/BCH 20 USDT**, phần lớn altcoin 5 USDT. Bot tự cập nhật bước khối lượng và lệnh tối thiểu từ exchangeInfo của Binance mỗi ngày (bảng có sẵn khi sàn không trả lời). Với 10 USDT:
 
-- **BTCUSDT không giao dịch được** (cần x10). Bot đứng ngoài và báo "vốn quá nhỏ … cần ≥ 34 USDT" (với giới hạn x3).
+- **BTCUSDT không giao dịch được** (cần x5). Bot đứng ngoài và báo "vốn quá nhỏ … cần ≥ 17 USDT" (với giới hạn x3).
 - **ETHUSDT** được, nhưng lệnh 20 USDT trên 10 USDT vốn là **đòn bẩy x2–3** dù chiến lược chỉ muốn khoảng x0,8. Vì vậy mặc định sổ futures là **ETHUSDT**.
 
 ### Bot quyết định thế nào (`ls_sma`)
@@ -141,7 +171,7 @@ Cách đọc: sụt giảm **60%** là chuyện bình thường của chiến l�
 
 ### Dùng thế nào
 
-1. Mặc định `FUTURES_MODE=paper`: sổ ảo ETHUSDT 10 USDT chạy mỗi ngày cùng giờ với bot spot (`TRADE_TIME`), báo cáo qua Telegram. Xem bằng `/futures` hoặc trang web **Futures**.
+1. Mặc định `FUTURES_MODE=paper`: sổ ảo 10 USDT cho ETH, SOL, XRP, DOGE, BNB chạy mỗi ngày cùng giờ với bot spot (`TRADE_TIME`), báo cáo qua Telegram. Xem bằng `/futures` hoặc trang web **Futures**.
 2. Muốn nhận lệnh cho tài khoản thật: `FUTURES_MODE=signal`, khởi động lại, gửi `/fvon 10` (số dư ví futures). Mỗi sáng bot gửi **vị thế mục tiêu**: chiều, khối lượng (theo bước của hợp đồng), đòn bẩy, giá cắt lỗ. Bạn tự đặt trên Binance (chế độ **cross, one-way**) và gửi lại `/fvon <số dư>` khi số dư đổi. Đạt mục tiêu hoặc chạm mức dừng, bot báo đóng vị thế; `/fvon <số> moi` để đặt lại vốn gốc.
 3. Chỉ dùng số tiền bạn chấp nhận mất hết. Không tăng đòn bẩy để "về đích nhanh": bảng ở trên cho thấy đó là cách nhanh nhất để mất vốn.
 
@@ -149,9 +179,11 @@ Cách đọc: sụt giảm **60%** là chuyện bình thường của chiến l�
 
 Mọi lượt gọi AI của cả tiến trình đi qua **một cổng chung** (`cryptotrader/llm_clients/rate_gate.py`) trước khi tới 9Router (hoặc nhà cung cấp dự phòng):
 
-- **Tuần tự**: `LLM_MAX_CONCURRENT=1` (mặc định) - các agent chạy song song trong graph nhưng mỗi lúc chỉ **một** yêu cầu tới gateway; các lượt gọi cách nhau ít nhất `LLM_MIN_INTERVAL_SEC` (1,5 giây).
+- **Tuần tự**: `LLM_MAX_CONCURRENT=1` (mặc định) - các agent chạy song song trong graph nhưng mỗi lúc chỉ **một** yêu cầu tới gateway.
+- **Nghỉ giữa hai lượt gọi**: tính từ lúc lượt trước **kết thúc**, nghỉ một khoảng ngẫu nhiên từ `LLM_MIN_INTERVAL_SEC` tới `LLM_MAX_INTERVAL_SEC` (mặc định **10–20 giây**), mỗi lượt một số khác nhau.
 - **Hạn mức theo thời gian**: tối đa `LLM_MAX_CALLS_PER_MINUTE` (20) và `LLM_MAX_CALLS_PER_HOUR` (0 = không giới hạn) lượt trong 60 giây / 1 giờ bất kỳ. Vượt thì **chờ** tới khi có chỗ (tối đa `LLM_MAX_WAIT_SEC`, 300 giây).
-- **Ngân sách**: tối đa `LLM_MAX_CALLS_PER_DAY` (300) lượt mỗi ngày (giờ VN) và `LLM_MAX_CALLS_PER_ANALYSIS` (60) lượt cho mỗi lượt `/phantich` (một lượt thường cần khoảng 18–35). Vượt thì **từ chối ngay**: không chuyển sang nhà cung cấp khác (tránh tốn thêm), phân tích vẫn hoàn tất với quyết định của hệ thống và ghi "AI không khả dụng".
+- **Ngân sách**: tối đa `LLM_MAX_CALLS_PER_DAY` (300) lượt mỗi ngày (giờ VN) và `LLM_MAX_CALLS_PER_ANALYSIS` (**10**) lượt cho mỗi lượt `/phantich`.
+- **Phân tích gọn** (`CRYPTO_AGENTS_PROFILE=lite`, mặc định): bỏ vòng tranh luận Bull/Bear và nhóm rủi ro, mỗi analyst chỉ một vòng gọi công cụ → khoảng **9 lượt gọi** (4 analyst ~6, Research Manager, Trader, Portfolio Manager), vừa ngân sách 10. Với nghỉ 10–20 giây, một lượt `/phantich` mất khoảng 3–5 phút. `CRYPTO_AGENTS_PROFILE=full` quay lại bản đầy đủ (18–35 lượt; khi đó tăng `LLM_MAX_CALLS_PER_ANALYSIS`). Vượt thì **từ chối ngay**: không chuyển sang nhà cung cấp khác (tránh tốn thêm), phân tích vẫn hoàn tất với quyết định của hệ thống và ghi "AI không khả dụng".
 - Hàng đợi `/phantich` vẫn chỉ chạy **một** phân tích mỗi lúc. `/trangthai` và trang **Phân tích** hiện số lượt đã gọi trong phút/ngày, đang chạy, đang chờ, bị từ chối.
 - Bộ đếm nằm trong bộ nhớ (khởi động lại thì về 0). Gateway trả 429 thì nhà cung cấp đó vẫn được cho nghỉ như trước (`LLM_QUOTA_COOLDOWN_SEC`, `ROUTER9_RETRY_SEC`).
 

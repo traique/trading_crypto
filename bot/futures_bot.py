@@ -111,6 +111,9 @@ class FuturesTrader:
                 self._busy = False
 
     def _catch_up(self, final: str) -> RunResult:
+        from cryptotrader.futures import rules as futures_rules
+
+        futures_rules.refresh_specs(self.settings.data_dir)   # step / minimum order, cached a day
         market = _Market(final)
         strategy, policy = self.strategy(), self.policy()
         processed: list[str] = []
@@ -119,6 +122,9 @@ class FuturesTrader:
         for symbol in self.symbols:
             book = self.load_book(symbol)
             days = [d for d in market.days(symbol) if d <= final]
+            if not days:
+                notes.append(f"{_base(symbol)}: không có nến ngày nào (cặp không tồn tại hoặc nguồn chưa có) - bỏ qua.")
+                continue
             todo, skipped = _pending(days, str(book.meta.get("last_day") or ""))
             if skipped:
                 notes.append(f"{_base(symbol)}: bỏ qua {skipped} ngày cũ (quá {MAX_CATCH_UP} ngày), "

@@ -14,6 +14,10 @@ def _isolated(tmp_path, monkeypatch, request):
     monkeypatch.setenv("CRYPTO_DATA_DIR", str(tmp_path / "data"))
     # The LLM gate spaces real calls; the scripted models of the tests need no spacing.
     monkeypatch.setenv("LLM_MIN_INTERVAL_SEC", "0")
+    monkeypatch.setenv("LLM_MAX_INTERVAL_SEC", "0")
+    # The existing graph tests exercise the full analysis (debates, risk team); lite has its own tests.
+    monkeypatch.setenv("CRYPTO_AGENTS_PROFILE", "full")
+    monkeypatch.setenv("LLM_MAX_CALLS_PER_ANALYSIS", "60")
     net.reset_breakers()
     GATE.reset()
     if request.node.get_closest_marker("integration") is None:

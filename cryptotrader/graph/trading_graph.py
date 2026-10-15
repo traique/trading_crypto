@@ -16,7 +16,7 @@ from cryptotrader.data.symbols import normalize_symbol, safe_file_component
 from cryptotrader.dataflows import tokenomics
 from cryptotrader.dataflows.config import run_config, run_config_context, set_config
 from cryptotrader.dataflows.date_window import validate_trade_date
-from cryptotrader.default_config import build_default_config
+from cryptotrader.default_config import apply_profile, build_default_config
 from cryptotrader.llm_clients import create_tier_client, tier_provider
 from cryptotrader.llm_clients.rate_gate import analysis_budget
 from cryptotrader.reporting import write_report_tree
@@ -35,7 +35,8 @@ class CryptoTradingGraph:
     def __init__(self, selected_analysts=DEFAULT_ANALYSTS, debug: bool = False,
                  config: dict[str, Any] | None = None, callbacks: list | None = None):
         self.debug = debug
-        self.config = {**build_default_config(), **(config or {})}
+        # The profile (lite/full) of the merged config sets the rounds the caller did not set itself.
+        self.config = apply_profile({**build_default_config(), **(config or {})}, explicit=set(config or {}))
         self.callbacks = callbacks or []
         set_config(self.config)
         Path(self.config["results_dir"]).mkdir(parents=True, exist_ok=True)

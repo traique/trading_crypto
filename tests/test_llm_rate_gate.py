@@ -29,6 +29,7 @@ def _gate(clock, day="2026-10-15"):
 
 def test_requests_are_spaced_by_the_min_interval(monkeypatch):
     monkeypatch.setenv("LLM_MIN_INTERVAL_SEC", "2")
+    monkeypatch.setenv("LLM_MAX_INTERVAL_SEC", "2")
     clock = FakeClock()
     gate = _gate(clock)
     for _ in range(3):
@@ -38,8 +39,34 @@ def test_requests_are_spaced_by_the_min_interval(monkeypatch):
     assert gate.status()["today"] == 3
 
 
+def test_the_pause_is_random_between_min_and_max_and_counts_from_the_end_of_the_call(monkeypatch):
+    monkeypatch.setenv("LLM_MIN_INTERVAL_SEC", "10")
+    monkeypatch.setenv("LLM_MAX_INTERVAL_SEC", "20")
+    monkeypatch.setenv("LLM_MAX_CALLS_PER_MINUTE", "0")
+    clock = FakeClock()
+    gate = rg.RateGate(clock=clock, sleep=clock.sleep, today=lambda: "2026-10-15")
+    pauses = []
+    for _ in range(20):
+        with gate.slot():
+            clock.t += 7.0                 # the call itself takes 7 s
+        before = len(clock.slept)
+        with gate.slot():
+            pass
+        pauses += clock.slept[before:]
+    assert all(10.0 <= p <= 20.0 for p in pauses)
+    assert len({round(p, 1) for p in pauses}) > 5      # not a fixed rhythm
+
+
+def test_defaults_fit_a_small_gateway(monkeypatch):
+    for name in ("LLM_MIN_INTERVAL_SEC", "LLM_MAX_INTERVAL_SEC", "LLM_MAX_CALLS_PER_ANALYSIS"):
+        monkeypatch.delenv(name, raising=False)
+    lim = rg.limits()
+    assert (lim["min_interval"], lim["max_interval"], lim["per_analysis"], lim["max_concurrent"]) == (10, 20, 10, 1)
+
+
 def test_per_minute_cap_waits_for_a_free_slot(monkeypatch):
     monkeypatch.setenv("LLM_MIN_INTERVAL_SEC", "0")
+    monkeypatch.setenv("LLM_MAX_INTERVAL_SEC", "0")
     monkeypatch.setenv("LLM_MAX_CALLS_PER_MINUTE", "3")
     clock = FakeClock()
     gate = _gate(clock)
@@ -138,5 +165,8 @@ def test_refused_call_does_not_try_the_next_provider(monkeypatch):
 
 def test_status_line_is_readable(monkeypatch):
     monkeypatch.setenv("LLM_MAX_CALLS_PER_DAY", "200")
+    monkeypatch.setenv("LLM_MIN_INTERVAL_SEC", "10")
+    monkeypatch.setenv("LLM_MAX_INTERVAL_SEC", "20")
+    monkeypatch.setenv("LLM_MAX_CALLS_PER_ANALYSIS", "10")
     line = rg.status_line()
-    assert "tuần tự" in line and "/200" in line
+    assert "tuần tự" in line and "/200" in line and "10-20s" in line and "10 lượt/phân tích" in line

@@ -32,7 +32,32 @@ _ENV_OVERRIDES = {
     "CRYPTO_AGENTS_MAX_TOKENS": "max_tokens",
     "CRYPTO_AGENTS_NEWS_LIMIT": "news_article_limit",
     "CRYPTO_ENGINE_STRATEGY": "engine_strategy",
+    "CRYPTO_AGENTS_PROFILE": "analysis_profile",
 }
+
+# How many LLM calls one analysis makes. "lite" (default) fits a ~10-call budget for a small
+# gateway: no bull/bear debate, no risk team, one tool round per analyst (about 9 calls:
+# 4 analysts ~6, research manager, trader, portfolio manager). "full": the debates and the
+# risk team (about 18-35 calls). A value set explicitly by its own variable wins over the profile.
+PROFILES = {
+    "lite": {"max_debate_rounds": 0, "max_risk_discuss_rounds": 0, "max_tool_rounds": 1},
+    "full": {"max_debate_rounds": 1, "max_risk_discuss_rounds": 1, "max_tool_rounds": 12},
+}
+_PROFILE_ENV = {"max_debate_rounds": "CRYPTO_AGENTS_MAX_DEBATE_ROUNDS",
+                "max_risk_discuss_rounds": "CRYPTO_AGENTS_MAX_RISK_ROUNDS",
+                "max_tool_rounds": "CRYPTO_AGENTS_MAX_TOOL_ROUNDS"}
+
+
+def apply_profile(config: dict, explicit=()) -> dict:
+    """Set the profile's round counts, except those in ``explicit`` or set by their own variable."""
+    profile = str(config.get("analysis_profile") or "lite").strip().lower()
+    if profile not in PROFILES:
+        raise ValueError(f"Invalid value for CRYPTO_AGENTS_PROFILE: {profile!r} (lite or full)")
+    config["analysis_profile"] = profile
+    for key, value in PROFILES[profile].items():
+        if key not in explicit and not os.environ.get(_PROFILE_ENV[key]):
+            config[key] = value
+    return config
 
 _BOOL_TRUE = ("true", "1", "yes", "on")
 _BOOL_FALSE = ("false", "0", "no", "off")
@@ -71,7 +96,7 @@ def build_default_config() -> dict:
     # Not created here: importing the package must not touch the disk.
     home = os.environ.get("CRYPTO_AGENTS_HOME") or str(
         Path(os.environ.get(DATA_DIR_ENV) or "data").expanduser() / "agents")
-    return _apply_env_overrides({
+    return apply_profile(_apply_env_overrides({
         "results_dir": os.environ.get("CRYPTO_AGENTS_RESULTS_DIR") or os.path.join(home, "results"),
         "data_cache_dir": os.environ.get("CRYPTO_AGENTS_CACHE_DIR") or os.path.join(home, "cache"),
         # LLM settings. "default" lets each provider of the chain use its own *_MODEL.
@@ -109,7 +134,8 @@ def build_default_config() -> dict:
         ],
         # The strategy whose engine view decides the system action (cryptotrader.strategies.REGISTRY).
         "engine_strategy": "btc_sma_ens",
-    })
+        "analysis_profile": "lite",
+    }))
 
 
 DEFAULT_CONFIG = build_default_config()

@@ -163,7 +163,7 @@ Mỗi lượt gọi AI đi theo `PROVIDER_ORDER` (mặc định `router9,groq,op
 
 - Lỗi kết nối, timeout, lỗi máy chủ → chuyển ngay sang nhà cung cấp kế tiếp.
 - Bị 429 (hết quota) → nghỉ theo `Retry-After`, hoặc `LLM_QUOTA_COOLDOWN_SEC` (mặc định 300 s). 9Router lỗi → nghỉ `ROUTER9_RETRY_SEC` (mặc định 900 s).
-- **Giới hạn gọi để không quá tải gateway:** mọi lượt gọi đi qua một cổng chung: mỗi lúc một lượt (`LLM_MAX_CONCURRENT=1`), cách nhau ≥ `LLM_MIN_INTERVAL_SEC` (1,5 s), tối đa `LLM_MAX_CALLS_PER_MINUTE` (20) lượt/phút (vượt thì chờ, tối đa `LLM_MAX_WAIT_SEC`), `LLM_MAX_CALLS_PER_DAY` (300) lượt/ngày và `LLM_MAX_CALLS_PER_ANALYSIS` (60) lượt mỗi `/phantich` (vượt thì từ chối: phân tích vẫn xong với quyết định hệ thống). Một `/phantich` thường dùng 18–35 lượt. `/trangthai` hiện số lượt đã dùng.
+- **Giới hạn gọi để không quá tải gateway:** mọi lượt gọi đi qua một cổng chung: mỗi lúc một lượt (`LLM_MAX_CONCURRENT=1`), nghỉ ngẫu nhiên 10–20 s sau mỗi lượt (`LLM_MIN_INTERVAL_SEC`, `LLM_MAX_INTERVAL_SEC`), tối đa `LLM_MAX_CALLS_PER_MINUTE` (20) lượt/phút (vượt thì chờ, tối đa `LLM_MAX_WAIT_SEC`), `LLM_MAX_CALLS_PER_DAY` (300) lượt/ngày và `LLM_MAX_CALLS_PER_ANALYSIS` (10) lượt mỗi `/phantich` (vượt thì từ chối: phân tích vẫn xong với quyết định hệ thống). Phân tích gọn `CRYPTO_AGENTS_PROFILE=lite` (mặc định) dùng khoảng 9 lượt, mất 3–5 phút. `/trangthai` hiện số lượt đã dùng.
 
 ## 9. Toàn bộ biến môi trường
 
@@ -194,12 +194,14 @@ Mỗi lượt gọi AI đi theo `PROVIDER_ORDER` (mặc định `router9,groq,op
 | `XAI_API_KEY`, `XAI_MODEL` | - | Grok (tuỳ chọn) |
 | `LLM_QUOTA_COOLDOWN_SEC`, `ROUTER9_RETRY_SEC`, `LLM_CALL_TIMEOUT_SEC` | 300 / 900 / 120 | Nghỉ khi 429, khi 9Router lỗi; timeout mỗi lượt gọi |
 | `LLM_MAX_CONCURRENT` | 1 | Số lượt gọi AI chạy cùng lúc (1 = tuần tự) |
-| `LLM_MIN_INTERVAL_SEC` | 1.5 | Khoảng cách tối thiểu giữa hai lượt gọi (giây) |
+| `LLM_MIN_INTERVAL_SEC`, `LLM_MAX_INTERVAL_SEC` | 10 / 20 | Nghỉ ngẫu nhiên trong khoảng này (giây) sau mỗi lượt gọi |
+| `CRYPTO_AGENTS_PROFILE` | `lite` | `lite`: phân tích gọn ~9 lượt gọi (không tranh luận, không nhóm rủi ro); `full`: đầy đủ 18–35 lượt |
 | `LLM_MAX_CALLS_PER_MINUTE`, `LLM_MAX_CALLS_PER_HOUR` | 20 / 0 | Tối đa lượt gọi trong 60 s / 1 giờ bất kỳ; vượt thì chờ (0 = không giới hạn) |
 | `LLM_MAX_WAIT_SEC` | 300 | Chờ lâu hơn thế thì bỏ lượt gọi |
-| `LLM_MAX_CALLS_PER_DAY`, `LLM_MAX_CALLS_PER_ANALYSIS` | 300 / 60 | Ngân sách mỗi ngày (giờ VN) và mỗi lượt phân tích; vượt thì từ chối (0 = không giới hạn) |
+| `LLM_MAX_CALLS_PER_DAY`, `LLM_MAX_CALLS_PER_ANALYSIS` | 300 / 10 | Ngân sách mỗi ngày (giờ VN) và mỗi lượt phân tích; vượt thì từ chối (0 = không giới hạn) |
 | `FUTURES_MODE` | `paper` | Futures long/short: `paper` / `signal` / `off` |
-| `FUTURES_SYMBOLS`, `FUTURES_SIGNAL_SYMBOL` | `ETHUSDT` | Cặp futures (mỗi cặp một sổ ảo); cặp cho tín hiệu thật. 10 USDT không đủ cho BTCUSDT (lệnh tối thiểu 100 USDT) |
+| `FUTURES_SYMBOLS` | `ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,BNBUSDT` | Cặp futures, mỗi cặp một sổ ảo (cặp phải có trên Binance spot) |
+| `FUTURES_SIGNAL_SYMBOL` | `ETHUSDT` | Cặp cho tín hiệu tài khoản thật. 10 USDT không đủ cho BTCUSDT (lệnh tối thiểu 50 USDT) |
 | `FUTURES_CAPITAL` | 10 | Vốn mỗi sổ futures ảo (USDT) |
 | `FUTURES_GOAL_PROFIT` | 100 | Đạt vốn + số này: đóng vị thế và dừng (0 = không có mục tiêu) |
 | `FUTURES_STOP_EQUITY` | nửa vốn (5) | Vốn còn bằng hoặc dưới số này: đóng vị thế và dừng (0 = không dừng) |

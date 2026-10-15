@@ -34,7 +34,7 @@ def test_quantity_steps_and_exchange_minimum():
     eth = spec_for("ETHUSDT")
     assert eth.floor_qty(0.0123456) == pytest.approx(0.012)
     assert eth.min_qty_at(2000.0) == pytest.approx(0.01)          # 20 USDT
-    assert spec_for("BTCUSDT").min_notional == 100
+    assert spec_for("BTCUSDT").min_notional == 50
     unknown = spec_for("FOOUSDT")
     assert not unknown.known and unknown.mmr >= 0.01
 
@@ -199,3 +199,25 @@ def test_backtest_trades_a_trend_both_ways_without_look_ahead():
     days = [h["date"] for h in book.history]
     assert all(t["date"] in days for t in book.trades)
     assert math.isfinite(book.last_nav)
+
+
+def test_contract_filters_are_refreshed_from_exchange_info_and_cached(tmp_path):
+    payload = {"symbols": [
+        {"symbol": "PEPEXUSDT", "quoteAsset": "USDT", "contractType": "PERPETUAL", "status": "TRADING",
+         "filters": [{"filterType": "LOT_SIZE", "stepSize": "1"}, {"filterType": "MIN_NOTIONAL", "notional": "5"}]},
+        {"symbol": "BTCUSDT", "quoteAsset": "USDT", "contractType": "PERPETUAL", "status": "TRADING",
+         "filters": [{"filterType": "LOT_SIZE", "stepSize": "0.001"}, {"filterType": "MIN_NOTIONAL", "notional": "70"}]},
+        {"symbol": "OLDUSDT", "quoteAsset": "USDT", "contractType": "PERPETUAL", "status": "SETTLING", "filters": []},
+    ]}
+    saved = dict(fr.SPECS)
+    try:
+        assert fr.refresh_specs(tmp_path, fetch=lambda: payload, now=1000.0) == 2
+        assert fr.spec_for("BTCUSDT").min_notional == 70 and fr.spec_for("PEPEXUSDT").known
+        # Cached for a day: no second fetch.
+        assert fr.refresh_specs(tmp_path, fetch=lambda: 1 / 0, now=2000.0) == 2
+        # Exchange down and cache stale: the table stays as it is.
+        assert fr.refresh_specs(tmp_path, fetch=lambda: 1 / 0, now=1000.0 + 2 * 86_400) == 0
+        assert fr.spec_for("BTCUSDT").min_notional == 70
+    finally:
+        fr.SPECS.clear()
+        fr.SPECS.update(saved)

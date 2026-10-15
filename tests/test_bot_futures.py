@@ -20,7 +20,15 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def futures(settings, market):
+    # The fake market has BTC and ETH only.
+    object.__setattr__(settings, "futures_symbols", (ETH,))
     return FuturesTrader(settings)
+
+
+def test_a_pair_without_candles_does_not_hold_the_others_back(settings, market):
+    object.__setattr__(settings, "futures_symbols", (ETH, "SOLUSDT"))
+    result = FuturesTrader(settings).catch_up("2026-10-14")
+    assert result.day == "2026-10-14" and "SOL: không có nến" in result.text
 
 
 def _set(settings, **values):
@@ -92,7 +100,7 @@ def test_a_halted_book_resumes_with_the_goal_and_floor_counted_from_its_equity(f
     assert book.meta["stop_equity"] == pytest.approx(56.0) and book.meta["start_capital"] == 10.0
     assert "đang chạy bình thường" in futures.resume("ETH")
     with pytest.raises(ValueError):
-        futures.resume("DOGE")
+        futures.resume("PEPE")
 
 
 def test_the_futures_scheduler_has_its_own_stamp_and_switch(settings, futures):

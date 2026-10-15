@@ -245,6 +245,9 @@ def run_chain(chain: Sequence[tuple[str, Any]], call) -> Any:
         try:
             with GATE.slot(name):
                 result = call(model)
+        except NotImplementedError:
+            GATE.refund()          # nothing was sent (no structured output on this model)
+            raise
         except LLMBudgetExceeded as exc:
             # Not the provider's failure, and the next provider would spend the budget again.
             logger.warning("LLM call refused by the rate gate: %s", exc)
