@@ -121,6 +121,9 @@ HELP = (
     "lịch sử lệnh), giá tính bằng USDT, dùng dấu chấm cho phần thập phân. Phí lệnh mua mặc định trừ vào coin "
     "(Binance không dùng BNB); trả phí bằng BNB thì thêm phi=bnb\n"
     "/von 1000 - đặt số USDT của tài khoản thật\n"
+    "/futures - sổ futures long/short (ảo), vị thế, tiến độ mục tiêu; /futures chay - chạy ngay; "
+    "/futures tieptuc ETH - chạy lại sau khi dừng\n"
+    "/fvon 10 - số dư ví futures thật (chế độ FUTURES_MODE=signal); /fvon 10 moi - đặt lại vốn gốc\n"
     "/trangthai - hàng đợi, nhà cung cấp AI và trạng thái bot\n"
     "/id - Telegram id của bạn\n\n"
     "Nến ngày đóng lúc 00:00 UTC (07:00 giờ VN); bot chạy lúc {trade_time} giờ VN mỗi ngày, kể cả cuối tuần. "
@@ -158,6 +161,7 @@ class TelegramBot:
         self._session = requests.Session()
         self._thread = threading.Thread(target=self._poll, name="telegram-bot", daemon=True)
         self.trader = None   # bot.trader.TradingBot, set by main_botkeep
+        self.futures = None  # bot.futures_bot.FuturesTrader, set by main_botkeep
         # Commands of one chat run in order on one lane; a burst waits instead of
         # spawning a thread per message (the host is small).
         self._lanes = [ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"telegram-cmd-{i}")
@@ -518,6 +522,8 @@ class TelegramBot:
                 self.send(chat_id, self._status())
             elif command in ("/danhmuc", "/lenh", "/khop", "/von", "/chay"):
                 self._trading(chat_id, command, args)
+            elif command in ("/futures", "/fvon"):
+                self._futures(chat_id, command, args)
             else:
                 self.send(chat_id, self._help())
         except ValueError as exc:
@@ -594,6 +600,30 @@ class TelegramBot:
             kwargs = {"fee_in": fee_in} if fee_in is not None else {}
             self.send(chat_id, self.trader.record_fill(side, parts[1], qty, price, day, **kwargs))
 
+    def _futures(self, chat_id: int, command: str, args: str) -> None:
+        if self.futures is None or self.settings.futures_mode == "off":
+            raise ValueError("Bot futures đang tắt (FUTURES_MODE=off).")
+        parts = args.split()
+        if command == "/fvon":
+            if self.settings.futures_mode != "signal":
+                raise ValueError("/fvon chỉ dùng ở chế độ tín hiệu (FUTURES_MODE=signal).")
+            if len(parts) not in (1, 2) or (len(parts) == 2 and parts[1].lower() not in ("moi", "mới")):
+                raise ValueError("Dùng: /fvon 10 (số dư ví futures, USDT); /fvon 10 moi để đặt lại vốn gốc")
+            equity = fmt.parse_number(parts[0], "Số vốn")
+            self.send(chat_id, self.futures.reset_real_start(equity) if len(parts) == 2
+                      else self.futures.set_real_equity(equity))
+            return
+        sub = parts[0].lower() if parts else ""
+        if not sub:
+            self.send(chat_id, self.futures.status_text())
+        elif sub in ("chay", "chạy"):
+            self.send(chat_id, self.futures.start_run(notify=lambda text: self.send(chat_id, text),
+                                                      report=lambda text: self.report(text, also=chat_id)))
+        elif sub in ("tieptuc", "tiếptục") and len(parts) == 2:
+            self.send(chat_id, self.futures.resume(parts[1]))
+        else:
+            raise ValueError("Dùng: /futures, /futures chay, /futures tieptuc ETH")
+
     def _status(self) -> str:
         lines = ["Hàng đợi phân tích:"]
         recent = self.jobs.recent(8)
@@ -611,6 +641,8 @@ class TelegramBot:
             lines.append(gate)
         if self.trader is not None and self.settings.trade_mode != "off":
             lines.append("\n" + self.trader.next_run_text())
+        if self.futures is not None and self.settings.futures_mode != "off":
+            lines.append(self.futures.next_run_text())
         return "\n".join(lines)
 
     # ── job events ──

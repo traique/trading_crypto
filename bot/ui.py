@@ -201,7 +201,7 @@ e = html.escape
 
 def page(title: str, body: str, *, active: str = "", refresh: int | None = None) -> str:
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
-    nav = [("home", "/", "Tổng quan"), ("analysis", "/phantich", "Phân tích")]
+    nav = [("home", "/", "Tổng quan"), ("futures", "/futures", "Futures"), ("analysis", "/phantich", "Phân tích")]
     links = "".join(f'<a href="{href}" class="{"on" if key == active else ""}">{label}</a>' for key, href, label in nav)
     return (
         '<!doctype html><html lang="vi"><head><meta charset="utf-8">'

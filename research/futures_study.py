@@ -101,9 +101,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--goal", type=float, default=100.0)
     parser.add_argument("--floor", type=float, default=5.0)
     parser.add_argument("--years", type=float, default=3.0)
+    parser.add_argument("--target-vol", type=float, default=0.5, help="biến động mục tiêu (0.5 = 50%%/năm)")
+    parser.add_argument("--max-leverage", type=float, default=2.0)
+    parser.add_argument("--min-order-leverage", type=float, default=3.0)
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args(argv)
-    strategy = LongShortSma()
+    strategy = LongShortSma(target_vol=args.target_vol, max_leverage=args.max_leverage,
+                            min_order_max_leverage=args.min_order_leverage)
+    print(f"ls_sma: target_vol {args.target_vol:g}, max_leverage {args.max_leverage:g}, "
+          f"min_order_leverage {args.min_order_leverage:g}")
     for symbol in [s.strip().upper() for s in args.symbols.split(",") if s.strip()]:
         frame = load_perp(symbol, args.refresh)
         print(f"\n== {symbol}  ({frame['Date'].min().date()} .. {frame['Date'].max().date()})")

@@ -146,7 +146,7 @@ def test_ten_usdt_cannot_trade_btc_but_trades_eth_at_the_minimum():
     eth = s.decide(_frame(noisy), 10.0, 0.0, spec_for("ETHUSDT"))
     assert eth["trade"] and eth["qty"] > 0 and eth["direction"] == 1
     assert eth["qty"] * noisy[-1] >= 20 - 1e-9 and eth["leverage"] <= 3.0 + 1e-9
-    assert "tối thiểu" in eth["reason"]
+    assert "tối thiểu" in eth["reason"] and "LONG" in eth["reason"]
     assert eth["stop_dist"] and eth["stop_dist"] > 0
 
 

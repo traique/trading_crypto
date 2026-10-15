@@ -14,7 +14,7 @@ tried) first passes this gate, which:
   sliding minute / hour (defaults 20 / 0 = off): a request over the limit
   WAITS for a free slot, at most ``LLM_MAX_WAIT_SEC`` (default 300 s);
 - allows at most ``LLM_MAX_CALLS_PER_DAY`` requests per Vietnam calendar day
-  (default 0 = off), and at most ``LLM_MAX_CALLS_PER_ANALYSIS`` per analysis
+  (default 300), and at most ``LLM_MAX_CALLS_PER_ANALYSIS`` per analysis
   (default 60, see ``analysis_budget``): over these the request is REFUSED at
   once with ``LLMBudgetExceeded``.
 
@@ -68,7 +68,7 @@ def limits() -> dict:
         "min_interval": _env_num("LLM_MIN_INTERVAL_SEC", 1.5),
         "per_minute": int(_env_num("LLM_MAX_CALLS_PER_MINUTE", 20)),
         "per_hour": int(_env_num("LLM_MAX_CALLS_PER_HOUR", 0)),
-        "per_day": int(_env_num("LLM_MAX_CALLS_PER_DAY", 0)),
+        "per_day": int(_env_num("LLM_MAX_CALLS_PER_DAY", 300)),
         "per_analysis": int(_env_num("LLM_MAX_CALLS_PER_ANALYSIS", 60)),
         "max_wait": _env_num("LLM_MAX_WAIT_SEC", 300),
     }

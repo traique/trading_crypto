@@ -95,7 +95,11 @@ Botkeep tự đặt `SERVER_PORT`; chạy nơi khác thì dùng `PORT` (mặc đ
 | `/chay` | Chạy ngay các nến đã đóng mà bot chưa xử lý (ngày đã chạy thì bỏ qua) |
 | `/von 1000` | Đặt số USDT của tài khoản thật (chế độ `signal`) |
 | `/khop mua BTC 0.0123 65000 [phi=coin\|usdt\|bnb] [YYYY-MM-DD]` | Báo đã khớp lệnh thật (chế độ `signal`); bán: `/khop ban BTC 0.0123 66000` |
-| `/trangthai` | Hàng đợi, nhà cung cấp AI, trạng thái bot |
+| `/futures` | Sổ futures long/short (ảo): NAV, vị thế, cắt lỗ, giá thanh lý, tiến độ mục tiêu; tài khoản futures thật ở chế độ `signal` |
+| `/futures chay` | Chạy ngay phần futures cho nến đã đóng |
+| `/futures tieptuc ETH` | Chạy lại sổ futures đã dừng (đạt mục tiêu hoặc chạm mức dừng); mục tiêu/mức dừng tính lại từ vốn hiện tại |
+| `/fvon 10` | Số dư ví futures thật (chế độ `FUTURES_MODE=signal`); `/fvon 10 moi` đặt lại vốn gốc |
+| `/trangthai` | Hàng đợi, nhà cung cấp AI, số lượt gọi AI đã dùng, trạng thái bot |
 | `/id`, `/help` | Telegram id của bạn; hướng dẫn |
 
 Coin nhận các dạng `BTC`, `btc`, `BTCUSDT`, `BTC/USDT`, `btc-usdt`. Cặp không phải USDT (ví dụ `ETH/BTC`) và stablecoin bị từ chối.
@@ -159,6 +163,7 @@ Mỗi lượt gọi AI đi theo `PROVIDER_ORDER` (mặc định `router9,groq,op
 
 - Lỗi kết nối, timeout, lỗi máy chủ → chuyển ngay sang nhà cung cấp kế tiếp.
 - Bị 429 (hết quota) → nghỉ theo `Retry-After`, hoặc `LLM_QUOTA_COOLDOWN_SEC` (mặc định 300 s). 9Router lỗi → nghỉ `ROUTER9_RETRY_SEC` (mặc định 900 s).
+- **Giới hạn gọi để không quá tải gateway:** mọi lượt gọi đi qua một cổng chung: mỗi lúc một lượt (`LLM_MAX_CONCURRENT=1`), cách nhau ≥ `LLM_MIN_INTERVAL_SEC` (1,5 s), tối đa `LLM_MAX_CALLS_PER_MINUTE` (20) lượt/phút (vượt thì chờ, tối đa `LLM_MAX_WAIT_SEC`), `LLM_MAX_CALLS_PER_DAY` (300) lượt/ngày và `LLM_MAX_CALLS_PER_ANALYSIS` (60) lượt mỗi `/phantich` (vượt thì từ chối: phân tích vẫn xong với quyết định hệ thống). Một `/phantich` thường dùng 18–35 lượt. `/trangthai` hiện số lượt đã dùng.
 
 ## 9. Toàn bộ biến môi trường
 
@@ -188,6 +193,19 @@ Mỗi lượt gọi AI đi theo `PROVIDER_ORDER` (mặc định `router9,groq,op
 | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | - | OpenRouter |
 | `XAI_API_KEY`, `XAI_MODEL` | - | Grok (tuỳ chọn) |
 | `LLM_QUOTA_COOLDOWN_SEC`, `ROUTER9_RETRY_SEC`, `LLM_CALL_TIMEOUT_SEC` | 300 / 900 / 120 | Nghỉ khi 429, khi 9Router lỗi; timeout mỗi lượt gọi |
+| `LLM_MAX_CONCURRENT` | 1 | Số lượt gọi AI chạy cùng lúc (1 = tuần tự) |
+| `LLM_MIN_INTERVAL_SEC` | 1.5 | Khoảng cách tối thiểu giữa hai lượt gọi (giây) |
+| `LLM_MAX_CALLS_PER_MINUTE`, `LLM_MAX_CALLS_PER_HOUR` | 20 / 0 | Tối đa lượt gọi trong 60 s / 1 giờ bất kỳ; vượt thì chờ (0 = không giới hạn) |
+| `LLM_MAX_WAIT_SEC` | 300 | Chờ lâu hơn thế thì bỏ lượt gọi |
+| `LLM_MAX_CALLS_PER_DAY`, `LLM_MAX_CALLS_PER_ANALYSIS` | 300 / 60 | Ngân sách mỗi ngày (giờ VN) và mỗi lượt phân tích; vượt thì từ chối (0 = không giới hạn) |
+| `FUTURES_MODE` | `paper` | Futures long/short: `paper` / `signal` / `off` |
+| `FUTURES_SYMBOLS`, `FUTURES_SIGNAL_SYMBOL` | `ETHUSDT` | Cặp futures (mỗi cặp một sổ ảo); cặp cho tín hiệu thật. 10 USDT không đủ cho BTCUSDT (lệnh tối thiểu 100 USDT) |
+| `FUTURES_CAPITAL` | 10 | Vốn mỗi sổ futures ảo (USDT) |
+| `FUTURES_GOAL_PROFIT` | 100 | Đạt vốn + số này: đóng vị thế và dừng (0 = không có mục tiêu) |
+| `FUTURES_STOP_EQUITY` | nửa vốn (5) | Vốn còn bằng hoặc dưới số này: đóng vị thế và dừng (0 = không dừng) |
+| `FUTURES_TARGET_VOL`, `FUTURES_MAX_LEVERAGE` | 0.5 / 2 | Biến động mục tiêu của vị thế (%/năm) và đòn bẩy tối đa |
+| `FUTURES_MIN_ORDER_LEVERAGE` | 3 | Đòn bẩy cao nhất chấp nhận để đạt lệnh tối thiểu của sàn |
+| `FUTURES_FUNDING_PCT_DAY`, `CRYPTO_FUT_TAKER_FEE_PCT`, `CRYPTO_FUT_SLIPPAGE_PCT` | 0.03 / 0.05 / 0.05 | Funding giả định cho lệnh long (%/ngày); phí và trượt giá futures (% mỗi lệnh) |
 
 ## 10. Xử lý sự cố
 

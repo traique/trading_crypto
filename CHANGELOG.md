@@ -2,6 +2,15 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/). Ngày theo UTC.
 
+## [Chưa phát hành] - 2026-10-15 (futures và giới hạn AI)
+
+### Thêm
+
+- **Futures long/short (USDⓈ-M perpetual)** - `cryptotrader/futures/`: sổ một vị thế, cross margin (khớp ở giá mở cửa nến kế tiếp, phí 0,05%, trượt giá 0,05%, cắt lỗ 3×ATR, giá thanh lý, funding); chiến lược `ls_sma` (7 SMA 50..200 ngày: ≥ 6/7 → LONG, ≤ 1/7 → SHORT, còn lại đứng ngoài; khối lượng theo biến động mục tiêu 50%/năm, tối đa x2; nâng lên lệnh tối thiểu của sàn nếu ≤ x3); quản lý vốn: đạt vốn + 100 USDT thì đóng và dừng, còn ≤ 5 USDT thì đóng và dừng.
+- **Bot futures** (`bot/futures_bot.py`): sổ ảo 10 USDT cho mỗi cặp `FUTURES_SYMBOLS` (mặc định ETHUSDT), chạy bù mỗi ngày cùng lịch với bot spot (`FuturesScheduler`); chế độ tín hiệu (`FUTURES_MODE=signal`) gửi vị thế mục tiêu cho tài khoản thật theo số dư `/fvon`. Telegram `/futures`, `/futures chay`, `/futures tieptuc ETH`, `/fvon`; trang web **Futures**.
+- **Nghiên cứu** `research/futures_study.py`: backtest trên nến perpetual và funding thật (kho Binance), kèm thống kê "10 → 110 USDT" theo mọi tháng bắt đầu. Kết quả: với rủi ro mặc định không lần nào đạt mục tiêu trong 3 năm; với đòn bẩy cao 3–6% đạt nhưng ~90% chạm mức dừng (README).
+- **Cổng giới hạn gọi AI** (`cryptotrader/llm_clients/rate_gate.py`) trước mọi lượt gọi tới 9Router/nhà cung cấp dự phòng: tuần tự (`LLM_MAX_CONCURRENT=1`), giãn cách `LLM_MIN_INTERVAL_SEC`, hạn mức mỗi phút/giờ (chờ), mỗi ngày và mỗi lượt phân tích (từ chối, phân tích vẫn xong với quyết định hệ thống). Hiện trên `/trangthai` và trang Phân tích.
+
 ## [Chưa phát hành] - 2026-10-15
 
 ### Thêm

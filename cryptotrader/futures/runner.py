@@ -58,12 +58,13 @@ def step(book: FuturesBook, strategy: LongShortSma, frame: pd.DataFrame, policy:
         notes.append(f"🎯 Đạt mục tiêu: vốn {nav:.2f} USDT ≥ {book.capital + policy.goal_profit:.2f}. "
                      "Đóng vị thế ở giá mở cửa tới và dừng mở lệnh mới.")
         return notes
-    if policy.stop_equity and nav <= policy.stop_equity:
+    floor = float(book.meta.get("stop_equity", policy.stop_equity) or 0.0)   # a resumed book has its own
+    if floor and nav <= floor:
         book.meta["halted"] = "floor"
         book.meta["halted_on"] = bar.date
         if book.qty:
             book.plan(bar.date, 0.0, None, "dừng lỗ tổng")
-        notes.append(f"🛑 Vốn còn {nav:.2f} USDT ≤ mức dừng {policy.stop_equity:g} USDT: đóng vị thế và "
+        notes.append(f"🛑 Vốn còn {nav:.2f} USDT ≤ mức dừng {floor:g} USDT: đóng vị thế và "
                      "dừng giao dịch.")
         return notes
     decision = strategy.decide(frame, nav, book.qty, book.spec)

@@ -6,7 +6,9 @@ Một tiến trình `main_botkeep.py` chạy liên tục gồm:
 
 - **Bot giao dịch hằng ngày** sau khi nến ngày Binance đóng (00:00 UTC = 07:00 giờ Việt Nam). Mỗi chiến lược có một **tài khoản ảo** bằng USDT. Ở chế độ tín hiệu, bot gửi thêm **lệnh đề xuất cho tài khoản thật** của bạn.
 - **Trang web**: NAV các tài khoản ảo so với BTC, vị thế, lệnh, giao dịch; trang phân tích coin.
-- **Bot Telegram**: `/nhanh`, `/phantich`, `/danhmuc`, `/lenh`, `/chay`, `/khop`, `/von`, `/trangthai`.
+- **Bot Telegram**: `/nhanh`, `/phantich`, `/danhmuc`, `/lenh`, `/chay`, `/khop`, `/von`, `/futures`, `/fvon`, `/trangthai`.
+- **Futures long/short** (USDⓈ-M perpetual): sổ ảo bắt đầu 10 USDT, mục tiêu +100 USDT, mức dừng 5 USDT; tín hiệu vị thế cho tài khoản thật ([chi tiết và kết quả](#futures-longshort-bắt-đầu-10-usdt-mục-tiêu-100-usdt)).
+- **Giới hạn gọi AI** cho 9Router: gọi tuần tự, giãn cách, hạn mức mỗi phút/ngày/lượt phân tích ([chi tiết](#giới-hạn-gọi-ai-9router)).
 - **Phân tích đa agent** (`/phantich`): các agent AI đọc giá, tin tức, tâm lý thị trường, tokenomics rồi tranh luận; **hành động cuối cùng luôn do chiến lược quyết định**, không do AI.
 
 > **Bot KHÔNG BAO GIỜ đặt lệnh lên sàn và không bao giờ hỏi API key sàn.** Ở chế độ tín hiệu, bạn tự đặt lệnh trên Binance rồi báo lại bằng `/khop`.
@@ -89,6 +91,69 @@ Kỳ vọng hợp lý: **lợi nhuận xấp xỉ BTC qua một chu kỳ đầy 
 > - **Report delivery.** The protocol said `report.md` would be written to disk. The harness forbids subagent report files, so the report is delivered as this answer. This is logged in `timeline.log`.
 
 Tóm tắt tiếng Việt: chỉ có **một đường đi thị trường** (2,8 năm: một đợt tăng, một đỉnh, một đợt giảm), nên không kết luận nào mạnh về thống kê; số TRAIN/VALID lạc quan vì nhóm nghiên cứu đã thử 805 cấu hình và dùng VALID để chọn; C2 **không** thắng hẳn chiến lược SMA200 cũ trên VALID; chi phí giả định thận trọng cho BTC ở vốn nhỏ, nhưng không tính thuế, sự cố sàn hay vận hành.
+
+## Futures long/short: bắt đầu 10 USDT, mục tiêu +100 USDT
+
+Bot có thêm phần **futures USDⓈ-M (hợp đồng vĩnh cửu), long và short**, chạy song song với phần spot ở trên. Giống phần spot: **tài khoản ảo + tín hiệu, bot không đặt lệnh lên sàn và không cần API key sàn**. Code: `cryptotrader/futures/` (sổ, chiến lược, quản lý vốn), `bot/futures_bot.py` (bot), `research/futures_study.py` (backtest).
+
+### Đọc trước: 10 → 110 USDT là mục tiêu rất khó
+
++100 USDT trên 10 USDT là **lãi 1.000% (x11)**. Kiểm tra trên dữ liệu futures thật của Binance (nến perpetual + funding thật từng ngày, 2020–09/2026, phí 0,05% + trượt giá 0,05% mỗi lệnh), bắt đầu từ ngày đầu của **mỗi tháng** (62 điểm bắt đầu), chạy tối đa 3 năm:
+
+| cách chơi (ETHUSDT, vốn 10 USDT, mức dừng 5 USDT) | đạt 110 USDT | chạm mức dừng 5 USDT | vốn cuối trung vị |
+|---|---|---|---|
+| Mặc định của bot (biến động mục tiêu 50%, x2; lệnh tối thiểu ép lên x2–3) | **0/62** | 6/62 (10%) | 6,5 USDT |
+| Mạo hiểm (biến động 120%, tối đa x5) | 2/62 (3%) | 56/62 (**90%**) | 4,8 USDT |
+| Liều (biến động 200%, tối đa x10) | 4/62 (6%) | 57/62 (**92%**) | 4,5 USDT |
+
+Tái lập: `python -m research.futures_study --symbols ETHUSDT [--target-vol 1.2 --max-leverage 5 --min-order-leverage 5]`.
+
+Nghĩa là: **muốn x11 trong vài năm thì phải dùng đòn bẩy cao, và khi đó khả năng cháy tài khoản cao gấp nhiều lần khả năng đạt mục tiêu.** Bot vì vậy chọn mức rủi ro vừa phải và coi +100 USDT là **mục tiêu dài hạn** có điểm dừng rõ ràng, không phải lời hứa. Cách thực tế hơn để có +100 USDT là **nạp thêm vốn đều đặn** (vốn lớn hơn thì cùng mức lãi % ra nhiều USDT hơn, và giao dịch được cả BTC).
+
+### Lệnh tối thiểu của sàn quyết định với 10 USDT
+
+Binance futures có giá trị lệnh tối thiểu: **BTCUSDT 100 USDT, ETHUSDT 20 USDT**, nhiều cặp khác 5 USDT (kiểm tra lại trên Binance, có thể đổi). Với 10 USDT:
+
+- **BTCUSDT không giao dịch được** (cần x10). Bot đứng ngoài và báo "vốn quá nhỏ … cần ≥ 34 USDT" (với giới hạn x3).
+- **ETHUSDT** được, nhưng lệnh 20 USDT trên 10 USDT vốn là **đòn bẩy x2–3** dù chiến lược chỉ muốn khoảng x0,8. Vì vậy mặc định sổ futures là **ETHUSDT**.
+
+### Bot quyết định thế nào (`ls_sma`)
+
+1. **Hướng**, từ giá đóng cửa nến ngày (UTC) và cùng 7 đường SMA 50…200 ngày của chiến lược spot: giá trên **≥ 6/7** đường → **LONG**; trên **≤ 1/7** → **SHORT**; còn lại **đứng ngoài**. Chỉ vào lệnh khi xu hướng rõ.
+2. **Khối lượng**: đòn bẩy = biến động mục tiêu (`FUTURES_TARGET_VOL`, 50%/năm) ÷ biến động thực 30 ngày, tối đa `FUTURES_MAX_LEVERAGE` (x2). Lệnh nhỏ hơn mức tối thiểu của sàn được nâng lên nếu chỉ cần ≤ `FUTURES_MIN_ORDER_LEVERAGE` (x3), không thì đứng ngoài.
+3. **Cắt lỗ**: 3 × ATR(14) tính từ giá vào, đặt cùng vị thế (lệnh STOP_MARKET). Sổ ảo kiểm tra cắt lỗ và **giá thanh lý** trên nến mỗi ngày (giá tệ nhất trước; giá mở cửa vượt qua cắt lỗ thì khớp ở giá mở cửa).
+4. **Biên 25%**: cùng chiều và lệch mục tiêu không quá 25% thì giữ nguyên (đỡ phí).
+5. **Quản lý vốn**: NAV ≥ vốn + `FUTURES_GOAL_PROFIT` (+100) → đóng vị thế, **dừng**, báo "chốt lãi". NAV ≤ `FUTURES_STOP_EQUITY` (5 USDT = mất một nửa) → đóng vị thế, **dừng**. Chạy lại bằng `/futures tieptuc ETH` (mục tiêu và mức dừng tính lại từ vốn lúc đó).
+6. Lệnh là lệnh thị trường ở giá mở cửa nến kế tiếp (00:00 UTC). Sổ ảo trừ phí 0,05%, trượt giá 0,05%, funding giả định 0,03%/ngày cho lệnh long (backtest dùng funding thật). Giá dùng nến spot thay cho nến perpetual (chênh lệch thường dưới 0,1%).
+
+Các tham số được **chọn trước khi chạy thử** (đường SMA của chiến lược spot đã kiểm định, các con số tròn), không tối ưu theo kết quả.
+
+### Kết quả backtest (sau phí và funding thật; `python -m research.futures_study`)
+
+| | TRAIN 07/2020–2023 | TEST 2024–09/2026 | giữ coin (spot) TEST |
+|---|---|---|---|
+| ETH, vốn 10 USDT (x2–3 do lệnh tối thiểu) | CAGR +56% / sụt giảm −61% | **+48% / −63%** (x2,9) | +5% / −68% |
+| ETH, vốn 1000 USDT (~x0,8) | +37% / −62% | +12% / −53% | |
+| BTC, vốn 1000 USDT (~x1) | +32% / −62% | +20% / −52% | +26% / −53% |
+| BTC, vốn 10 USDT | không giao dịch được | không giao dịch được | |
+
+Cách đọc: sụt giảm **60%** là chuyện bình thường của chiến lược này; ETH với 10 USDT có TEST đẹp **vì đòn bẩy bị ép lên x2–3 và giai đoạn TEST thuận lợi**, không phải vì nó an toàn hơn. Đây là backtest trong một giai đoạn, không có kiểm định độc lập như chiến lược spot; số liệu lạc quan hơn thực tế. Hãy chạy sổ ảo vài tháng trước khi làm theo bằng tiền thật.
+
+### Dùng thế nào
+
+1. Mặc định `FUTURES_MODE=paper`: sổ ảo ETHUSDT 10 USDT chạy mỗi ngày cùng giờ với bot spot (`TRADE_TIME`), báo cáo qua Telegram. Xem bằng `/futures` hoặc trang web **Futures**.
+2. Muốn nhận lệnh cho tài khoản thật: `FUTURES_MODE=signal`, khởi động lại, gửi `/fvon 10` (số dư ví futures). Mỗi sáng bot gửi **vị thế mục tiêu**: chiều, khối lượng (theo bước của hợp đồng), đòn bẩy, giá cắt lỗ. Bạn tự đặt trên Binance (chế độ **cross, one-way**) và gửi lại `/fvon <số dư>` khi số dư đổi. Đạt mục tiêu hoặc chạm mức dừng, bot báo đóng vị thế; `/fvon <số> moi` để đặt lại vốn gốc.
+3. Chỉ dùng số tiền bạn chấp nhận mất hết. Không tăng đòn bẩy để "về đích nhanh": bảng ở trên cho thấy đó là cách nhanh nhất để mất vốn.
+
+## Giới hạn gọi AI (9Router)
+
+Mọi lượt gọi AI của cả tiến trình đi qua **một cổng chung** (`cryptotrader/llm_clients/rate_gate.py`) trước khi tới 9Router (hoặc nhà cung cấp dự phòng):
+
+- **Tuần tự**: `LLM_MAX_CONCURRENT=1` (mặc định) - các agent chạy song song trong graph nhưng mỗi lúc chỉ **một** yêu cầu tới gateway; các lượt gọi cách nhau ít nhất `LLM_MIN_INTERVAL_SEC` (1,5 giây).
+- **Hạn mức theo thời gian**: tối đa `LLM_MAX_CALLS_PER_MINUTE` (20) và `LLM_MAX_CALLS_PER_HOUR` (0 = không giới hạn) lượt trong 60 giây / 1 giờ bất kỳ. Vượt thì **chờ** tới khi có chỗ (tối đa `LLM_MAX_WAIT_SEC`, 300 giây).
+- **Ngân sách**: tối đa `LLM_MAX_CALLS_PER_DAY` (300) lượt mỗi ngày (giờ VN) và `LLM_MAX_CALLS_PER_ANALYSIS` (60) lượt cho mỗi lượt `/phantich` (một lượt thường cần khoảng 18–35). Vượt thì **từ chối ngay**: không chuyển sang nhà cung cấp khác (tránh tốn thêm), phân tích vẫn hoàn tất với quyết định của hệ thống và ghi "AI không khả dụng".
+- Hàng đợi `/phantich` vẫn chỉ chạy **một** phân tích mỗi lúc. `/trangthai` và trang **Phân tích** hiện số lượt đã gọi trong phút/ngày, đang chạy, đang chờ, bị từ chối.
+- Bộ đếm nằm trong bộ nhớ (khởi động lại thì về 0). Gateway trả 429 thì nhà cung cấp đó vẫn được cho nghỉ như trước (`LLM_QUOTA_COOLDOWN_SEC`, `ROUTER9_RETRY_SEC`).
 
 ## Rủi ro - đọc trước khi dùng tiền thật
 

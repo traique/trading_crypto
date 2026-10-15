@@ -82,6 +82,19 @@ def _choice(name: str, options: tuple[str, ...], default: str) -> str:
     return raw if raw in options else default
 
 
+def _symbols(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    out = []
+    for part in (os.environ.get(name) or "").replace(";", ",").split(","):
+        part = part.strip().upper().replace("/", "").replace("-", "")
+        if not part:
+            continue
+        if not part.endswith("USDT"):
+            part += "USDT"
+        if part not in out:
+            out.append(part)
+    return tuple(out) or default
+
+
 def _ids(name: str) -> frozenset[int]:
     out = set()
     for part in (os.environ.get(name) or "").replace(";", ",").split(","):
@@ -109,6 +122,16 @@ class Settings:
     # Reverse proxies whose X-Forwarded-For is believed (uvicorn's forwarded_allow_ips):
     # comma-separated IPs/networks, or "*" when the app is reachable ONLY through a proxy.
     trusted_proxy_ips: str = "127.0.0.1"
+    # Futures (USDⓈ-M perpetuals, long/short): paper books and signals; see bot/futures_bot.py.
+    futures_mode: str = "paper"         # paper | signal | off
+    futures_symbols: tuple[str, ...] = ("ETHUSDT",)
+    futures_signal_symbol: str = "ETHUSDT"
+    futures_capital: float = 10.0       # starting USDT of each futures paper book
+    futures_goal_profit: float = 100.0  # close and stop at capital + this (0 = no goal)
+    futures_stop_equity: float = 5.0    # close and stop at or below this equity (0 = never)
+    futures_max_leverage: float = 2.0   # cap of the volatility-targeted size
+    futures_min_order_leverage: float = 3.0   # highest leverage accepted to reach the exchange minimum
+    futures_target_vol: float = 0.5     # annualised volatility the position aims at
     extra: dict = field(default_factory=dict)
 
     @property
@@ -154,4 +177,27 @@ def load(env_file: str | Path | None = None) -> Settings:
         trade_time=_trade_time(),
         trusted_proxy_ips=(os.environ.get("TRUSTED_PROXY_IPS") or os.environ.get("FORWARDED_ALLOW_IPS")
                            or "127.0.0.1").strip(),
+        **_futures_settings(),
     )
+
+
+def _futures_settings() -> dict:
+    symbols = _symbols("FUTURES_SYMBOLS", ("ETHUSDT",))
+    signal = _symbols("FUTURES_SIGNAL_SYMBOL", (symbols[0],))[0]
+    if signal not in symbols:
+        logger.warning("FUTURES_SIGNAL_SYMBOL %s is not in FUTURES_SYMBOLS; adding it", signal)
+        symbols = (*symbols, signal)
+    capital = _float("FUTURES_CAPITAL", 10.0)
+    if capital <= 0:
+        capital = 10.0
+    return {
+        "futures_mode": _choice("FUTURES_MODE", TRADE_MODES, "paper"),
+        "futures_symbols": symbols,
+        "futures_signal_symbol": signal,
+        "futures_capital": capital,
+        "futures_goal_profit": max(0.0, _float("FUTURES_GOAL_PROFIT", 100.0)),
+        "futures_stop_equity": max(0.0, _float("FUTURES_STOP_EQUITY", capital / 2)),
+        "futures_max_leverage": min(max(_float("FUTURES_MAX_LEVERAGE", 2.0), 0.1), 20.0),
+        "futures_min_order_leverage": min(max(_float("FUTURES_MIN_ORDER_LEVERAGE", 3.0), 0.1), 20.0),
+        "futures_target_vol": min(max(_float("FUTURES_TARGET_VOL", 0.5), 0.05), 5.0),
+    }

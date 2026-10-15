@@ -26,8 +26,9 @@ import uvicorn  # noqa: E402
 
 from bot.analysis import configured_order, unavailable_reason  # noqa: E402
 from bot.clock import VN_TZ  # noqa: E402
+from bot.futures_bot import FuturesTrader  # noqa: E402
 from bot.jobs import JobQueue  # noqa: E402
-from bot.service import DailyScheduler  # noqa: E402
+from bot.service import DailyScheduler, FuturesScheduler  # noqa: E402
 from bot.telegram_bot import TelegramBot  # noqa: E402
 from bot.trader import TradingBot  # noqa: E402
 from bot.web import create_app  # noqa: E402
@@ -66,14 +67,21 @@ def main() -> None:
     if trader is not None:
         trader.notify = bot.broadcast
     bot.trader = trader
+    futures = FuturesTrader(SETTINGS, notify=bot.broadcast) if SETTINGS.futures_mode != "off" else None
+    bot.futures = futures
     jobs.start()
     bot.start()
     DailyScheduler(SETTINGS, bot=trader, notify=bot.broadcast).start()
+    FuturesScheduler(SETTINGS, bot=futures, notify=bot.broadcast).start()
+    if futures is not None:
+        logging.info("Futures: mode %s, books %s, signals %s, capital %g USDT, goal +%g, floor %g",
+                     SETTINGS.futures_mode, ", ".join(futures.symbols), SETTINGS.futures_signal_symbol,
+                     SETTINGS.futures_capital, SETTINGS.futures_goal_profit, SETTINGS.futures_stop_equity)
     logging.info("Trading bot: mode %s, books %s, signals follow %s, runs daily at %s (Vietnam time)",
                  SETTINGS.trade_mode, ", ".join(s.name for s in trader.specs) if trader else "-",
                  SETTINGS.signal_strategy, SETTINGS.run_time)
 
-    app = create_app(SETTINGS, jobs, trader=trader)
+    app = create_app(SETTINGS, jobs, trader=trader, futures=futures)
     # Behind a reverse proxy (Botkeep) the socket peer is the proxy: the login lockout
     # needs the real client, which uvicorn takes from X-Forwarded-For only for the
     # proxies listed in TRUSTED_PROXY_IPS.

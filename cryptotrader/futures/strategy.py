@@ -116,27 +116,27 @@ class LongShortSma:
             out["vol"] = vol
             lev = min(self.max_leverage, self.target_vol / vol) if vol else 0.0
             qty = spec.floor_qty(lev * equity / price)
+            side = "LONG" if direction > 0 else "SHORT"
+            head = (f"giá trên {above}/{len(self.lookbacks)} SMA → {side}, biến động "
+                    f"{(vol or 0) * 100:.0f}%/năm")
+            note = ""
             if qty * price < spec.min_notional:
                 need = spec.min_qty_at(price)
                 need_lev = need * price / equity
                 cap = max(self.max_leverage, self.min_order_max_leverage)
                 if need_lev <= cap + 1e-9:
                     qty = need
-                    out["reason"] = (f"lệnh tối thiểu của sàn {spec.min_notional:g} USDT → đòn bẩy thực "
-                                     f"x{need_lev:.1f}")
+                    note = f", nâng lên lệnh tối thiểu của sàn {spec.min_notional:g} USDT → đòn bẩy thực x{need_lev:.1f}"
                 else:
                     qty = 0.0
-                    out["reason"] = (f"vốn {equity:.2f} USDT quá nhỏ cho {spec.symbol}: lệnh tối thiểu "
-                                     f"{spec.min_notional:g} USDT cần đòn bẩy x{need_lev:.1f} > tối đa "
-                                     f"x{cap:g} (cần ≥ {spec.min_notional / cap:.0f} USDT) - đứng ngoài")
+                    note = (f", nhưng vốn {equity:.2f} USDT quá nhỏ cho {spec.symbol}: lệnh tối thiểu "
+                            f"{spec.min_notional:g} USDT cần đòn bẩy x{need_lev:.1f} > tối đa x{cap:g} "
+                            f"(cần ≥ {math.ceil(spec.min_notional / cap)} USDT) - đứng ngoài")
             target = direction * qty
             out["leverage"] = abs(target) * price / equity if equity > 0 else 0.0
             a = atr(frame)
             out["stop_dist"] = self.stop_atr * a if a else None
-            if target and not out["reason"]:
-                side = "LONG" if direction > 0 else "SHORT"
-                out["reason"] = (f"giá trên {above}/{len(self.lookbacks)} SMA → {side}, biến động "
-                                 f"{(vol or 0) * 100:.0f}%/năm → đòn bẩy x{out['leverage']:.2f}")
+            out["reason"] = head + (note or f" → đòn bẩy x{out['leverage']:.2f}")
         same_side = current_qty and target and (current_qty > 0) == (target > 0)
         if same_side and abs(target - current_qty) <= self.band * abs(current_qty):
             out["qty"] = current_qty

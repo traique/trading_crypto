@@ -43,18 +43,21 @@ class DailyScheduler:
     MAX_LATE_RETRIES = 12
     TICK_SECONDS = 30
 
+    STAMP = "last_trade_run.txt"   # holds the Vietnam date of the last scheduled run
+    THREAD = "daily-scheduler"
+
     def __init__(self, settings: Settings, bot=None, notify=None):
         self.settings = settings
         self.bot = bot
         self.notify = notify or (lambda text: None)
-        self._trade_stamp = settings.data_dir / "last_trade_run.txt"    # the Vietnam date last run
+        self._trade_stamp = settings.data_dir / self.STAMP
         self._trade_next_try = 0.0
         self._trade_failures = 0
         self._late_retries = 0
         self._alerted = ""          # the day whose failure the owner was already told about
         self._reached: str | None = None
         self._started = False
-        self._thread = threading.Thread(target=self._loop, name="daily-scheduler", daemon=True)
+        self._thread = threading.Thread(target=self._loop, name=self.THREAD, daemon=True)
 
     def start(self) -> None:
         self._thread.start()
@@ -146,3 +149,14 @@ class DailyScheduler:
             except Exception:  # noqa: BLE001 - the scheduler must keep ticking
                 logger.exception("Daily scheduler tick failed")
             time.sleep(self.TICK_SECONDS)
+
+
+class FuturesScheduler(DailyScheduler):
+    """The same daily schedule, retries and catch-up for the futures books (``bot.futures_bot``)."""
+
+    STAMP = "last_futures_run.txt"
+    THREAD = "futures-scheduler"
+
+    @property
+    def enabled(self) -> bool:
+        return self.bot is not None and self.settings.futures_mode != "off"

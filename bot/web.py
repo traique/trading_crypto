@@ -300,7 +300,7 @@ def _dashboard(settings: Settings, trader, msg: str) -> str:
     return "".join(parts)
 
 
-def create_app(settings: Settings, jobs: JobQueue, trader=None) -> FastAPI:
+def create_app(settings: Settings, jobs: JobQueue, trader=None, futures=None) -> FastAPI:
     app = FastAPI(title="Crypto Bot", docs_url=None, redoc_url=None, openapi_url=None)
 
     @app.middleware("http")
@@ -373,6 +373,28 @@ def create_app(settings: Settings, jobs: JobQueue, trader=None) -> FastAPI:
         if trader is None or settings.trade_mode == "off":
             raise HTTPException(404, OFF_MESSAGE)
         return RedirectResponse(f"/?msg={quote(trader.start_run())}", status_code=303)
+
+    @app.get("/futures", dependencies=[Depends(guard)])
+    def futures_page(msg: str = "") -> HTMLResponse:
+        if futures is None or settings.futures_mode == "off":
+            body = ui.hero("Futures long/short") + ui.alert("Bot futures đang tắt (FUTURES_MODE=off).", "info")
+            return _page("Futures", body, active="futures")
+        run = ('<form method="post" action="/futures/run"><button class="btn btn-primary" type="submit">'
+               "Chạy ngay</button></form>")
+        body = (ui.hero("Futures long/short",
+                        f"USDⓈ-M perpetual · chế độ {_MODE_VI.get(settings.futures_mode, settings.futures_mode)} · "
+                        f"vốn ảo {settings.futures_capital:g} USDT, mục tiêu +{settings.futures_goal_profit:g}, "
+                        f"dừng ở {settings.futures_stop_equity:g}", run)
+                + ui.alert(msg, "info")
+                + ui.card("Trạng thái", f'<pre style="white-space:pre-wrap;margin:0">'
+                                        f"{html.escape(futures.status_text())}</pre>"))
+        return _page("Futures", body, active="futures", refresh=15 if futures.running else None)
+
+    @app.post("/futures/run", dependencies=post_guard)
+    def futures_run():
+        if futures is None or settings.futures_mode == "off":
+            raise HTTPException(404, "Bot futures đang tắt (FUTURES_MODE=off).")
+        return RedirectResponse(f"/futures?msg={quote(futures.start_run())}", status_code=303)
 
     @app.get("/phantich", dependencies=[Depends(guard)])
     def analysis_page(error: str = "") -> HTMLResponse:
