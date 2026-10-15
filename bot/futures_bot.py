@@ -78,7 +78,8 @@ class FuturesTrader:
 
     def policy(self) -> AccountPolicy:
         return AccountPolicy(goal_profit=self.settings.futures_goal_profit,
-                             stop_equity=self.settings.futures_stop_equity)
+                             stop_equity=self.settings.futures_stop_equity,
+                             dd_scale=self.settings.futures_dd_scale)
 
     # ── storage ──
     def _path(self, symbol: str):
@@ -193,6 +194,7 @@ class FuturesTrader:
         real = self._real()
         real["equity"] = float(equity)
         real.setdefault("start", float(equity))
+        real["peak"] = max(float(real.get("peak") or 0.0), float(equity))
         real["updated"] = time.time()
         self._save_real(real)
         start = float(real["start"])
@@ -203,57 +205,72 @@ class FuturesTrader:
 
     def reset_real_start(self, equity: float) -> str:
         real = self._real()
-        real.update({"equity": float(equity), "start": float(equity), "updated": time.time()})
+        real.update({"equity": float(equity), "start": float(equity), "peak": float(equity),
+                     "updated": time.time()})
         self._save_real(real)
         return f"✅ Đặt lại vốn gốc futures thật = {_num(equity, 2)} USDT (mục tiêu tính lại từ đây)."
 
     def _real_signal(self, market: _Market, day: str) -> list[str]:
-        symbol = self.settings.futures_signal_symbol
+        """The target position of each signal symbol, sized on the real equity split evenly."""
+        symbols = tuple(self.settings.futures_signal_symbols) or (self.settings.futures_signal_symbol,)
         real = self._real()
         equity = float(real.get("equity") or 0.0)
         if equity <= 0:
             return ["Tài khoản futures thật: chưa có vốn - gửi /fvon <số USDT> (số dư ví futures)."]
         start = float(real.get("start") or equity)
         s = self.settings
-        head = (f"Tài khoản futures THẬT ({_base(symbol)}, vốn {_num(equity, 2)} USDT, gốc {_num(start, 2)}):")
+        names = "+".join(_base(x) for x in symbols)
+        head = f"Tài khoản futures THẬT ({names}, vốn {_num(equity, 2)} USDT, gốc {_num(start, 2)}):"
         if s.futures_goal_profit and equity >= start + s.futures_goal_profit:
-            real["last_signal"] = {"day": day, "qty": 0.0}
+            real["last_signal"] = {"day": day, "targets": {}}
             self._save_real(real)
             return [head, f"🎯 ĐÃ ĐẠT MỤC TIÊU (+{_num(equity - start, 2)} USDT). Đóng mọi vị thế và rút lãi về "
                           "ví spot. Muốn chạy tiếp với mục tiêu mới: /fvon <số dư> moi."]
         if s.futures_stop_equity and equity <= s.futures_stop_equity:
-            real["last_signal"] = {"day": day, "qty": 0.0}
+            real["last_signal"] = {"day": day, "targets": {}}
             self._save_real(real)
             return [head, f"🛑 Vốn ≤ mức dừng {_num(s.futures_stop_equity, 2)} USDT: đóng mọi vị thế, NGỪNG "
                           "giao dịch và xem lại kế hoạch. Muốn chạy lại: /fvon <số dư> moi."]
-        frame = market.frame(symbol, day)
-        if frame is None or not len(frame):
-            return [head, "không có nến để tính tín hiệu."]
         strategy = self.strategy()
-        spec = spec_for(symbol)
-        btc = self._btc(market, day) if strategy.btc_filter and symbol != "BTCUSDT" else None
-        d = strategy.decide(frame.iloc[-strategy.warmup_days:], equity, 0.0, spec, btc_frame=btc)
-        price = float(d["price"] or 0.0)
-        qty = float(d["qty"] or 0.0)
-        real["last_signal"] = {"day": day, "qty": qty, "price": price, "stop_dist": d["stop_dist"],
-                               "reason": d["reason"]}
+        exposure = self.policy().exposure(equity, float(real.get("peak") or equity))
+        share = equity / len(symbols)
+        lines = [head]
+        if len(symbols) > 1:
+            lines.append(f"Vốn chia đều: {_num(share, 2)} USDT mỗi cặp.")
+        if exposure < 0.999:
+            lines.append(f"Đang sụt giảm so với đỉnh {_num(float(real.get('peak') or equity), 2)} USDT: "
+                         f"cỡ vị thế {exposure * 100:.0f}% (FUTURES_DD_SCALE).")
+        targets = {}
+        for symbol in symbols:
+            frame = market.frame(symbol, day)
+            if frame is None or not len(frame):
+                lines.append(f"• {_base(symbol)}: không có nến để tính tín hiệu.")
+                continue
+            spec = spec_for(symbol)
+            btc = self._btc(market, day) if strategy.btc_filter and symbol != "BTCUSDT" else None
+            d = strategy.decide(frame.iloc[-strategy.warmup_days:], share, 0.0, spec, btc_frame=btc,
+                                exposure=exposure)
+            price = float(d["price"] or 0.0)
+            qty = float(d["qty"] or 0.0)
+            targets[symbol] = {"qty": qty, "price": price, "stop_dist": d["stop_dist"], "reason": d["reason"]}
+            if not qty:
+                lines.append(f"• {_base(symbol)}: ĐỨNG NGOÀI (đóng vị thế nếu đang có). Lý do: {d['reason']}.")
+                continue
+            side = "LONG" if qty > 0 else "SHORT"
+            lines.append(f"• {_base(symbol)}: {_SIDE_VI[side]} {_num(abs(qty))} "
+                         f"(≈ {_num(abs(qty) * price, 2)} USDT theo giá đóng cửa {_num(price, 4)}, "
+                         f"đòn bẩy ≈ x{d['leverage']:.2f}; cross, one-way).")
+            if d["stop_dist"]:
+                stop = price - d["stop_dist"] if qty > 0 else price + d["stop_dist"]
+                lines.append(f"  Cắt lỗ: STOP_MARKET {'bán' if qty > 0 else 'mua'} đóng vị thế ở ≈ {_num(stop, 4)} "
+                             f"(= giá vào {'−' if qty > 0 else '+'} {_num(d['stop_dist'], 4)}; tính lại theo giá khớp thật).")
+            lines.append(f"  Lý do: {d['reason']}.")
+            if not spec.known:
+                lines.append(f"  ⚠️ Chưa có thông số hợp đồng {symbol} trong bot: kiểm tra bước khối lượng và "
+                             "lệnh tối thiểu trên Binance.")
+        real["last_signal"] = {"day": day, "targets": targets}
         self._save_real(real)
-        if not qty:
-            return [head, f"Vị thế mục tiêu: ĐỨNG NGOÀI (đóng mọi vị thế {_base(symbol)} nếu đang có). "
-                          f"Lý do: {d['reason']}."]
-        side = "LONG" if qty > 0 else "SHORT"
-        lines = [head, f"Vị thế mục tiêu: {_SIDE_VI[side]} {_num(abs(qty))} {_base(symbol)} "
-                       f"(≈ {_num(abs(qty) * price, 2)} USDT theo giá đóng cửa {_num(price, 4)}, "
-                       f"đòn bẩy ≈ x{d['leverage']:.2f}; chế độ cross, one-way)."]
-        if d["stop_dist"]:
-            stop = price - d["stop_dist"] if qty > 0 else price + d["stop_dist"]
-            lines.append(f"Cắt lỗ: đặt STOP_MARKET {'bán' if qty > 0 else 'mua'} đóng vị thế ở ≈ {_num(stop, 4)} "
-                         f"(= giá vào {'−' if qty > 0 else '+'} {_num(d['stop_dist'], 4)}; tính lại theo giá khớp thật).")
-        lines.append(f"Lý do: {d['reason']}. Nếu bạn đã đúng chiều và khối lượng lệch không quá 25% thì giữ "
-                     "nguyên; đang ngược chiều thì đóng rồi mở lại.")
-        if not spec.known:
-            lines.append(f"⚠️ Chưa có thông số hợp đồng {symbol} trong bot: kiểm tra bước khối lượng và lệnh "
-                         "tối thiểu trên Binance.")
+        lines.append("Đã đúng chiều và khối lượng lệch không quá 25% thì giữ nguyên; ngược chiều thì đóng rồi mở lại.")
         return lines
 
     # ── texts ──
@@ -312,9 +329,12 @@ class FuturesTrader:
                 real_lines.append(f"Tài khoản futures thật: vốn {_num(real['equity'], 2)} USDT "
                                   f"(gốc {_num(real.get('start') or real['equity'], 2)}).")
                 if sig:
-                    q = float(sig.get("qty") or 0.0)
-                    real_lines.append(f"Mục tiêu ngày {sig.get('day')}: "
-                                      + (f"{'LONG' if q > 0 else 'SHORT'} {_num(abs(q))}" if q else "đứng ngoài"))
+                    parts = []
+                    for sym, t in (sig.get("targets") or {}).items():
+                        q = float(t.get("qty") or 0.0)
+                        parts.append(f"{_base(sym)} " + (f"{'LONG' if q > 0 else 'SHORT'} {_num(abs(q))}" if q
+                                                         else "đứng ngoài"))
+                    real_lines.append(f"Mục tiêu ngày {sig.get('day')}: " + (", ".join(parts) or "đứng ngoài"))
             else:
                 real_lines.append("Tài khoản futures thật: chưa có vốn - gửi /fvon <số USDT>.")
         return self.report_text(day, None, real_lines)

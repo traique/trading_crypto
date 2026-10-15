@@ -201,7 +201,8 @@ Mỗi lượt gọi AI đi theo `PROVIDER_ORDER` (mặc định `router9,groq,op
 | `LLM_MAX_CALLS_PER_DAY`, `LLM_MAX_CALLS_PER_ANALYSIS` | 300 / 10 | Ngân sách mỗi ngày (giờ VN) và mỗi lượt phân tích; vượt thì từ chối (0 = không giới hạn) |
 | `FUTURES_MODE` | `paper` | Futures long/short: `paper` / `signal` / `off` |
 | `FUTURES_SYMBOLS` | `ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,BNBUSDT` | Cặp futures, mỗi cặp một sổ ảo (cặp phải có trên Binance spot) |
-| `FUTURES_SIGNAL_SYMBOL` | `BNBUSDT` | Cặp cho tín hiệu tài khoản thật. Với 10 USDT: ETH bị ép đòn bẩy (tối thiểu 20 USDT), BTC không vào được (50 USDT) |
+| `FUTURES_SIGNAL_SYMBOLS` | `BNBUSDT` | Cặp cho tín hiệu tài khoản thật, nhiều cặp thì vốn chia đều. Với 10 USDT chỉ BNB chạy đúng cỡ (ETH cần ≥ 43, BTC ≥ 72 USDT) |
+| `FUTURES_DD_SCALE` | 0 | Giảm cỡ vị thế khi sụt giảm (0.3 = còn 25% cỡ khi sụt 30%); cắt nửa sụt giảm và nửa lãi, vô tác dụng với vốn ~10 USDT |
 | `FUTURES_RULE` | `v2` | Bộ tham số `ls_sma`: `v2` (đã tối ưu walk-forward) hoặc `v1` (bản đầu) |
 | `FUTURES_CAPITAL` | 10 | Vốn mỗi sổ futures ảo (USDT) |
 | `FUTURES_GOAL_PROFIT` | 100 | Đạt vốn + số này: đóng vị thế và dừng (0 = không có mục tiêu) |

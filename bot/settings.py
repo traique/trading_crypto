@@ -125,7 +125,9 @@ class Settings:
     # Futures (USDⓈ-M perpetuals, long/short): paper books and signals; see bot/futures_bot.py.
     futures_mode: str = "paper"         # paper | signal | off
     futures_symbols: tuple[str, ...] = ("ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "BNBUSDT")
-    futures_signal_symbol: str = "BNBUSDT"
+    futures_signal_symbol: str = "BNBUSDT"          # first of futures_signal_symbols
+    futures_signal_symbols: tuple[str, ...] = ("BNBUSDT",)   # the real account's equity is split evenly
+    futures_dd_scale: float = 0.0                   # size cut to 25% at this drawdown (0.3 = -30%); 0 = off
     futures_capital: float = 10.0       # starting USDT of each futures paper book
     futures_goal_profit: float = 100.0  # close and stop at capital + this (0 = no goal)
     futures_stop_equity: float = 5.0    # close and stop at or below this equity (0 = never)
@@ -201,10 +203,12 @@ def _futures_settings() -> dict:
     symbols = _symbols("FUTURES_SYMBOLS", ("ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "BNBUSDT"))
     # BNB: the major whose volatility lets a 10 USDT account reach the 5 USDT minimum at the
     # strategy's own size (see README); ETH's 20 USDT minimum forces 2-3x on 10 USDT.
-    signal = _symbols("FUTURES_SIGNAL_SYMBOL", ("BNBUSDT",))[0]
-    if signal not in symbols:
-        logger.warning("FUTURES_SIGNAL_SYMBOL %s is not in FUTURES_SYMBOLS; adding it", signal)
-        symbols = (*symbols, signal)
+    signals = _symbols("FUTURES_SIGNAL_SYMBOLS", ()) or _symbols("FUTURES_SIGNAL_SYMBOL", ("BNBUSDT",))
+    signal = signals[0]
+    for sym in signals:
+        if sym not in symbols:
+            logger.warning("Signal symbol %s is not in FUTURES_SYMBOLS; adding it", sym)
+            symbols = (*symbols, sym)
     capital = _float("FUTURES_CAPITAL", 10.0)
     if capital <= 0:
         capital = 10.0
@@ -212,6 +216,8 @@ def _futures_settings() -> dict:
         "futures_mode": _choice("FUTURES_MODE", TRADE_MODES, "paper"),
         "futures_symbols": symbols,
         "futures_signal_symbol": signal,
+        "futures_signal_symbols": signals,
+        "futures_dd_scale": min(max(_float("FUTURES_DD_SCALE", 0.0), 0.0), 0.9),
         "futures_capital": capital,
         "futures_goal_profit": max(0.0, _float("FUTURES_GOAL_PROFIT", 100.0)),
         "futures_stop_equity": max(0.0, _float("FUTURES_STOP_EQUITY", capital / 2)),

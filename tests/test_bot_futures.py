@@ -63,20 +63,20 @@ def test_ten_usdt_is_too_small_for_btc_and_the_report_says_so(settings, market):
 
 def test_signal_mode_sizes_the_real_target_on_the_reported_equity(settings, market):
     assert settings.futures_signal_symbol == "BNBUSDT"            # the default (not in the fake market)
-    _set(settings, futures_mode="signal", futures_signal_symbol=ETH)
+    _set(settings, futures_mode="signal", futures_signal_symbol=ETH, futures_signal_symbols=(ETH,))
     futures = FuturesTrader(settings)
     assert "/fvon" in futures.catch_up("2026-10-14").text
     assert "vốn gốc 10" in futures.set_real_equity(10)
     small = "\n".join(futures._real_signal(support_market(), "2026-10-14"))
-    assert "Vị thế mục tiêu: LONG (mua) 0.016 ETH" in small and "STOP_MARKET" in small
+    assert "ETH: LONG (mua) 0.016" in small and "STOP_MARKET" in small
     futures.set_real_equity(100)                               # the start stays 10
     big = "\n".join(futures._real_signal(support_market(), "2026-10-14"))
-    assert "LONG (mua) 0.155 ETH" in big
+    assert "ETH: LONG (mua) 0.155" in big
     futures.set_real_equity(120)
     done = "\n".join(futures._real_signal(support_market(), "2026-10-14"))
     assert "ĐÃ ĐẠT MỤC TIÊU" in done
     assert "Đặt lại vốn gốc" in futures.reset_real_start(120)
-    assert "Vị thế mục tiêu" in "\n".join(futures._real_signal(support_market(), "2026-10-14"))
+    assert "ETH: LONG" in "\n".join(futures._real_signal(support_market(), "2026-10-14"))
     futures.set_real_equity(4)
     assert "NGỪNG" in "\n".join(futures._real_signal(support_market(), "2026-10-14"))
 
@@ -160,3 +160,33 @@ def test_the_web_page_shows_the_futures_books(settings, futures):
     page = client.get("/futures", auth=("x", "pw"))
     assert page.status_code == 200 and "FUTURES long/short" in page.text and "ETH" in page.text
     assert client.get("/futures").status_code == 401
+
+
+def test_signals_for_several_symbols_split_the_equity_and_scale_down_in_a_drawdown(settings, market):
+    _set(settings, futures_mode="signal", futures_signal_symbols=(ETH, BTC), futures_dd_scale=0.3,
+         futures_rule="v1")
+    futures = FuturesTrader(settings)
+    futures.set_real_equity(2000)
+    futures.set_real_equity(1700)                               # -15% from the peak of 2000
+    text = "\n".join(futures._real_signal(support_market(), "2026-10-14"))
+    assert "Vốn chia đều: 850 USDT mỗi cặp" in text
+    assert "cỡ vị thế 50%" in text
+    assert "• ETH: LONG" in text and "• BTC: LONG" in text
+    assert "/fvon" not in text
+    status = futures.status_text()
+    assert "ETH LONG" in status and "BTC LONG" in status
+    futures.reset_real_start(1700)                              # a new start clears the peak
+    assert "cỡ vị thế" not in "\n".join(futures._real_signal(support_market(), "2026-10-14"))
+
+
+def test_signal_symbols_setting(monkeypatch, tmp_path):
+    from bot import settings as settings_module
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CRYPTO_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("FUTURES_SYMBOLS", "ETH")
+    monkeypatch.setenv("FUTURES_SIGNAL_SYMBOLS", "btc, eth, bnb")
+    monkeypatch.setenv("FUTURES_DD_SCALE", "0.3")
+    s = settings_module.load()
+    assert s.futures_signal_symbols == ("BTCUSDT", "ETHUSDT", "BNBUSDT") and s.futures_signal_symbol == "BTCUSDT"
+    assert s.futures_symbols == ("ETHUSDT", "BTCUSDT", "BNBUSDT") and s.futures_dd_scale == 0.3

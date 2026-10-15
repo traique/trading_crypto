@@ -123,7 +123,7 @@ class LongShortSma:
         return self.direction(closes[np.isfinite(closes)][-self.warmup_days:])[0]
 
     def decide(self, frame: pd.DataFrame, equity: float, current_qty: float, spec: FuturesSpec,
-               btc_frame: pd.DataFrame | None = None) -> dict:
+               btc_frame: pd.DataFrame | None = None, exposure: float = 1.0) -> dict:
         """The target for the next candle from candles up to the decision day (the frame's last row).
 
         Returns {"trade": bool, "qty": signed target, "stop_dist", "direction", "above", "leverage",
@@ -163,7 +163,8 @@ class LongShortSma:
         else:
             vol = realised_vol(closes)
             out["vol"] = vol
-            lev = min(self.max_leverage, self.target_vol / vol) if vol else 0.0
+            # ``exposure`` < 1: the account policy's drawdown scaling (runner.step).
+            lev = min(self.max_leverage, self.target_vol / vol) * max(0.0, min(1.0, exposure)) if vol else 0.0
             qty = spec.floor_qty(lev * equity / price)
             side = "LONG" if direction > 0 else "SHORT"
             head = (f"giá trên {above}/{len(self.lookbacks)} SMA → {side}, biến động "
@@ -189,7 +190,8 @@ class LongShortSma:
             out["leverage"] = abs(target) * price / equity if equity > 0 else 0.0
             a = atr(frame)
             out["stop_dist"] = self.stop_atr * a if a else None
-            out["reason"] = head + (note or f" → đòn bẩy x{out['leverage']:.2f}")
+            scaled = f" (cỡ {exposure * 100:.0f}% vì đang sụt giảm)" if exposure < 0.999 else ""
+            out["reason"] = head + (note or f" → đòn bẩy x{out['leverage']:.2f}") + scaled
         same_side = current_qty and target and (current_qty > 0) == (target > 0)
         if same_side and abs(target - current_qty) <= self.band * abs(current_qty):
             out["qty"] = current_qty

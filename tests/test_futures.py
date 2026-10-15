@@ -247,3 +247,22 @@ def test_v2_is_the_default_and_the_btc_filter_keeps_an_altcoin_with_btc():
     with pytest.raises(ValueError):
         LongShortSma.preset("v9")
     assert LongShortSma.preset("v1", target_vol=None).target_vol == 0.5
+
+
+def test_drawdown_scaling_cuts_the_size_below_the_peak_and_restores_it_at_a_new_peak():
+    policy = AccountPolicy(goal_profit=0, stop_equity=0, dd_scale=0.3)
+    assert policy.exposure(100, 100) == 1.0 and policy.exposure(120, 100) == 1.0
+    assert policy.exposure(85, 100) == pytest.approx(0.5)
+    assert policy.exposure(60, 100) == 0.25                      # floor of the scaling
+    assert AccountPolicy(0, 0, 0.0).exposure(50, 100) == 1.0      # off
+    s = LongShortSma.preset("v1")
+    frame = _frame(np.linspace(1000, 3000, 260))
+    full = s.decide(frame, 10_000.0, 0.0, spec_for("ETHUSDT"))
+    half = s.decide(frame, 10_000.0, 0.0, spec_for("ETHUSDT"), exposure=0.5)
+    assert half["qty"] == pytest.approx(full["qty"] / 2, rel=0.01) and "50%" in half["reason"]
+    # In the daily step the peak comes from the book's own history.
+    book = _book(capital=10.0)
+    book.history = [{"date": "2025-09-01", "nav": 20.0, "close": 1000.0, "qty": 0.0}]
+    book.cash = 17.0                                              # -15% from the peak of 20
+    step(book, s, frame, policy)
+    assert "cỡ 50%" in book.meta["signal"]["reason"]

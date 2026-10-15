@@ -2,6 +2,14 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/). Ngày theo UTC.
 
+## [Chưa phát hành] - 2026-10-15 (đánh giá lãi/rủi ro)
+
+### Thêm
+
+- `research/ASSESSMENT.md`: đo bốn đòn bẩy (cỡ vị thế, danh mục nhiều coin, giảm cỡ khi sụt giảm, chốt an toàn) và bảng vốn tối thiểu từng coin; cấu hình khuyến nghị theo vốn.
+- `FUTURES_SIGNAL_SYMBOLS`: tín hiệu thật cho nhiều cặp, vốn chia đều (`FUTURES_SIGNAL_SYMBOL` vẫn dùng được cho một cặp).
+- `FUTURES_DD_SCALE` (`AccountPolicy.dd_scale`): giảm cỡ vị thế tuyến tính theo sụt giảm so với đỉnh, tối thiểu 25%; tài khoản thật theo đỉnh của các số dư đã báo (`/fvon`); `research.futures_study --dd-scale`.
+
 ## [Chưa phát hành] - 2026-10-15 (tối ưu chiến lược futures)
 
 ### Thay đổi

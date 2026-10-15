@@ -11,6 +11,11 @@ account rules of a small account:
 - **Floor** (``stop_equity``, default 5 USDT = half of 10): when the equity
   falls to it, the position is closed at the next open and the book stops
   (``"floor"``), instead of trading the rest away.
+- **Drawdown scaling** (``dd_scale``, 0 = off): below the equity peak the
+  position is sized down linearly, to 25% of normal at a drawdown of
+  ``dd_scale`` (0.3 = -30%) and beyond; full size again at a new peak. On
+  2020-2026 data it roughly halves the maximum drawdown and takes a third
+  off the return (``research/ASSESSMENT.md``).
 """
 
 from __future__ import annotations
@@ -28,6 +33,13 @@ from cryptotrader.futures.strategy import LongShortSma
 class AccountPolicy:
     goal_profit: float = 100.0      # USDT above the starting capital; 0 = no goal
     stop_equity: float = 5.0        # stop trading at or below this equity; 0 = never
+    dd_scale: float = 0.0           # drawdown at which exposure is cut to 25% (0.3 = -30%); 0 = off
+
+    def exposure(self, nav: float, peak: float) -> float:
+        """The size multiplier for a NAV below its peak (1.0 at or above it)."""
+        if not self.dd_scale or peak <= 0 or nav >= peak:
+            return 1.0
+        return max(0.25, 1.0 + (nav / peak - 1.0) / self.dd_scale)
 
 
 def bar_of(row) -> Bar:
@@ -68,7 +80,9 @@ def step(book: FuturesBook, strategy: LongShortSma, frame: pd.DataFrame, policy:
         notes.append(f"🛑 Vốn còn {nav:.2f} USDT ≤ mức dừng {floor:g} USDT: đóng vị thế và "
                      "dừng giao dịch.")
         return notes
-    decision = strategy.decide(frame, nav, book.qty, book.spec, btc_frame=btc_frame)
+    peak = max([book.capital, *(float(h["nav"]) for h in book.history)])
+    decision = strategy.decide(frame, nav, book.qty, book.spec, btc_frame=btc_frame,
+                               exposure=policy.exposure(nav, peak))
     decision["day"] = bar.date
     book.meta["signal"] = {k: v for k, v in decision.items() if k != "vol" or v is None or np.isfinite(v)}
     if decision["trade"]:

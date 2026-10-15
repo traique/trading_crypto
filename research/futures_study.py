@@ -79,12 +79,12 @@ def _fmt(stats: dict) -> str:
 
 
 def goal_study(frame: pd.DataFrame, symbol: str, capital: float, goal: float, floor: float, years: float,
-               strategy: LongShortSma, btc: pd.DataFrame | None = None) -> dict:
+               strategy: LongShortSma, btc: pd.DataFrame | None = None, dd_scale: float = 0.0) -> dict:
     end = pd.Timestamp(frame["Date"].max())
     starts = pd.date_range("2020-08-01", end - pd.Timedelta(days=365), freq="MS")
     out = []
     for start in starts:
-        book = backtest(frame, strategy, capital, AccountPolicy(goal, floor), start=str(start.date()),
+        book = backtest(frame, strategy, capital, AccountPolicy(goal, floor, dd_scale), start=str(start.date()),
                         end=str((start + pd.Timedelta(days=int(365 * years))).date()), symbol=symbol,
                         stop_at_halt=True, btc=btc)
         out.append((book.meta.get("halted"), len(book.history), book.last_nav))
@@ -105,6 +105,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--target-vol", type=float, default=None, help="biến động mục tiêu (0.3 = 30%%/năm)")
     parser.add_argument("--max-leverage", type=float, default=None)
     parser.add_argument("--min-order-leverage", type=float, default=3.0)
+    parser.add_argument("--dd-scale", type=float, default=0.0, help="giảm cỡ vị thế theo sụt giảm (0.3 = -30%%)")
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args(argv)
     strategy = LongShortSma.preset(args.preset, target_vol=args.target_vol, max_leverage=args.max_leverage,
@@ -116,13 +117,15 @@ def main(argv: list[str] | None = None) -> None:
         print(f"\n== {symbol}  ({frame['Date'].min().date()} .. {frame['Date'].max().date()})")
         for capital in (args.capital, 1000.0):
             for label, (start, end) in (("TRAIN", TRAIN), ("TEST ", (TEST_START, None))):
-                book = backtest(frame, strategy, capital, start=start, end=end, symbol=symbol, btc=btc)
+                book = backtest(frame, strategy, capital, AccountPolicy(0.0, 0.0, args.dd_scale),
+                                start=start, end=end, symbol=symbol, btc=btc)
                 liq = sum(t["reason"] == "THANH LÝ" for t in book.trades)
                 print(f"  vốn {capital:>6g}  {label} {_fmt(summary(nav_series(book)))}  "
                       f"lệnh {len(book.trades)}  thanh lý {liq}")
         hold = frame.set_index("Date")["Close"].loc[TEST_START:]
         print(f"  giữ {symbol} (spot, TEST): {_fmt(summary(hold))}")
-        g = goal_study(frame, symbol, args.capital, args.goal, args.floor, args.years, strategy, btc)
+        g = goal_study(frame, symbol, args.capital, args.goal, args.floor, args.years, strategy, btc,
+                       args.dd_scale)
         print(f"  mục tiêu {args.capital:g} -> {args.capital + args.goal:g} USDT trong {args.years:g} năm, "
               f"{g['starts']} điểm bắt đầu: đạt {g['goal']}, chạm mức dừng {args.floor:g}: {g['floor']}, "
               f"vốn cuối trung vị {g['median_end']:.2f}"

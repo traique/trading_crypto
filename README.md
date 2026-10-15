@@ -213,6 +213,16 @@ Mục tiêu 10 → 110 USDT trong 3 năm: v2 **vẫn 0/62 lần đạt** với B
 - **Turtle H4** (theo xu hướng): trung bình khoảng +8%/năm, ngang chiến lược `ls_sma` của bot, không tốt hơn rõ ràng.
 - **Không kiểu nào đưa 10 → 110 USDT một cách đáng tin**, nên bot giữ `ls_sma`.
 
+### Lãi cao nhất mà không cháy: đánh giá lại (`research/ASSESSMENT.md`)
+
+Đã đo bốn đòn bẩy trên dữ liệu TEST: tăng cỡ vị thế, gộp nhiều coin, giảm cỡ khi sụt giảm, và các chốt an toàn. Kết luận ngắn ([chi tiết](research/ASSESSMENT.md)):
+
+- **Tăng cỡ vị thế không tăng lãi ở dữ liệu mới**, chỉ tăng sụt giảm lên 70–80%. Giữ biến động mục tiêu 30%.
+- **Danh mục 4 coin lớn** (BTC+ETH+BNB+XRP, chia đều vốn) giảm sụt giảm từ −41% xuống −28% với lãi ≈ +19%/năm, nhưng cần **≥ 300 USDT**. `FUTURES_SIGNAL_SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT,XRPUSDT`.
+- **`FUTURES_DD_SCALE=0.3`** (cỡ vị thế còn 25% khi sụt 30%) cắt một nửa sụt giảm và một nửa lãi; **vô tác dụng với 10 USDT** vì lệnh tối thiểu của sàn ấn định cỡ vị thế. Mặc định tắt.
+- **Vốn tối thiểu để chạy đúng cỡ**: BNB 8 USDT, XRP 11, SOL 12, DOGE 14, ETH 43, BTC 72. Dưới mức đó lệnh bị nâng lên và đòn bẩy thật cao hơn thiết kế.
+- **Với 10 USDT**: BNB một mình, kỳ vọng ≈ +10%/năm (≈ +1 USDT), sụt giảm 40%, mức dừng 5 USDT. Trần "không cháy" của chiến lược là khoảng **20–28%/năm với sụt giảm 30–40%**, và cần vài trăm USDT.
+
 ## Giới hạn gọi AI (9Router)
 
 Mọi lượt gọi AI của cả tiến trình đi qua **một cổng chung** (`cryptotrader/llm_clients/rate_gate.py`) trước khi tới 9Router (hoặc nhà cung cấp dự phòng):
