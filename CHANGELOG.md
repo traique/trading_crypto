@@ -2,6 +2,13 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/). Ngày theo UTC.
 
+## [Chưa phát hành] - 2026-10-15 (kiểm tra các kiểu bot MT5)
+
+### Thêm
+
+- `research/intraday_study.py`: 7 kiểu EA phổ biến trên MT5 (breakout H1, turtle H4, MA cross H1, RSI và Bollinger hồi quy H1, grid, martingale) với tham số mặc định cố định trước, backtest trên nến 1 giờ futures thật + funding (BTC, ETH, SOL, BNB, XRP, DOGE), thống kê 10 → 110 USDT; `--grid-1m` chạy lại grid/martingale trên nến 1 phút. Test: `tests/test_research_intraday.py`.
+- `research/MT5_RESULTS.md`: kết quả. Grid/martingale lỗ 26–95%/năm dù thắng 90% số lệnh; breakout H1 và Bollinger lỗ; chỉ turtle H4 (theo xu hướng) hoà vốn đến dương, ngang `ls_sma`. Không đưa kiểu nào vào bot.
+
 ## [Chưa phát hành] - 2026-10-15 (altcoin, phân tích gọn)
 
 ### Thay đổi

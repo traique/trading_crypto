@@ -175,6 +175,17 @@ Cách đọc: sụt giảm **60%** là chuyện bình thường của chiến l�
 2. Muốn nhận lệnh cho tài khoản thật: `FUTURES_MODE=signal`, khởi động lại, gửi `/fvon 10` (số dư ví futures). Mỗi sáng bot gửi **vị thế mục tiêu**: chiều, khối lượng (theo bước của hợp đồng), đòn bẩy, giá cắt lỗ. Bạn tự đặt trên Binance (chế độ **cross, one-way**) và gửi lại `/fvon <số dư>` khi số dư đổi. Đạt mục tiêu hoặc chạm mức dừng, bot báo đóng vị thế; `/fvon <số> moi` để đặt lại vốn gốc.
 3. Chỉ dùng số tiền bạn chấp nhận mất hết. Không tăng đòn bẩy để "về đích nhanh": bảng ở trên cho thấy đó là cách nhanh nhất để mất vốn.
 
+### Các kiểu bot MT5 phổ biến (grid, martingale, breakout, RSI, Bollinger, MA cross, turtle)
+
+Đã viết lại 7 kiểu EA phổ biến trên MT5 với tham số mặc định thông dụng, rồi backtest trên nến 1 giờ futures thật của 6 coin. Grid và martingale được kiểm tra lại bằng nến 1 phút. Tất cả đều có phí, funding, lệnh tối thiểu và thanh lý (`python -m research.intraday_study`, chi tiết ở [`research/MT5_RESULTS.md`](research/MT5_RESULTS.md)). Tóm tắt giai đoạn 2024–09/2026:
+
+- **Grid và martingale**: thắng 90% số lệnh nhưng **lỗ 26–95%/năm** trên mọi coin; 15–19/19 lần chạm mức dừng.
+- **Breakout H1 và Bollinger H1**: lỗ trên mọi coin (phí và nhiễu khung giờ).
+- **RSI hồi quy**: quanh hoà vốn, ít lệnh.
+- **MA cross H1**: lãi trên SOL và DOGE, lỗ trên BTC, ETH, BNB, XRP.
+- **Turtle H4** (theo xu hướng): trung bình khoảng +8%/năm, ngang chiến lược `ls_sma` của bot, không tốt hơn rõ ràng.
+- **Không kiểu nào đưa 10 → 110 USDT một cách đáng tin**, nên bot giữ `ls_sma`.
+
 ## Giới hạn gọi AI (9Router)
 
 Mọi lượt gọi AI của cả tiến trình đi qua **một cổng chung** (`cryptotrader/llm_clients/rate_gate.py`) trước khi tới 9Router (hoặc nhà cung cấp dự phòng):
